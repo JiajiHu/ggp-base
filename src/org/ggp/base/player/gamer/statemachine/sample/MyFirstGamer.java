@@ -1,6 +1,7 @@
 package org.ggp.base.player.gamer.statemachine.sample;
 
 import java.util.List;
+import java.util.Random;
 
 import org.ggp.base.apps.player.detail.DetailPanel;
 import org.ggp.base.apps.player.detail.SimpleDetailPanel;
@@ -27,7 +28,7 @@ import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
  * add the last core function : public Move stateMachineSelectMove(long timeout)
  */
 
-public abstract class MyFirstGamer extends StateMachineGamer
+public class MyFirstGamer extends StateMachineGamer
 {
 	@Override
 	public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
@@ -74,28 +75,19 @@ public abstract class MyFirstGamer extends StateMachineGamer
      */
     List<Move> moves = getStateMachine().getLegalMoves(getCurrentState(), getRole());
 
-    // SampleLegalGamer is very simple : it picks the first legal move
-    Move selection = moves.get(0);
+    // A legal gamer would blindly choose the first move. Let's make it a random gamer
+    Random random = new Random();
+    Move selection = moves.get(random.nextInt(moves.size()));
 
     // We get the end time
     // It is mandatory that stop<timeout
     long stop = System.currentTimeMillis();
 
-    /**
-     * These are functions used by other parts of the GGP codebase
-     * You shouldn't worry about them, just make sure that you have
-     * moves, selection, stop and start defined in the same way as
-     * this example, and copy-paste these two lines in your player
-     */
     notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
     return selection;
   }
 
 
-	/** This will currently return "SampleGamer"
-	 * If you are working on : public abstract class MyGamer extends SampleGamer
-	 * Then this function would return "MyGamer"
-	 */
 	@Override
 	public String getName() {
 		return getClass().getSimpleName();
@@ -112,8 +104,6 @@ public abstract class MyFirstGamer extends StateMachineGamer
 	public DetailPanel getDetailPanel() {
 		return new SimpleDetailPanel();
 	}
-
-
 
 	@Override
 	public void stateMachineStop() {
