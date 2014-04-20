@@ -19,13 +19,8 @@ import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 
 /**
- * SampleGamer is a simplified version of the StateMachineGamer, dropping some
- * advanced functionality so the example gamers can be presented concisely.
- * This class implements 7 of the 8 core functions that need to be implemented
- * for any gamer.
- *
- * If you want to quickly create a gamer of your own, extend this class and
- * add the last core function : public Move stateMachineSelectMove(long timeout)
+   MyFirstGamer is a Random Gamer
+
  */
 
 public class MyFirstGamer extends StateMachineGamer
