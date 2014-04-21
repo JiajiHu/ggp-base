@@ -86,8 +86,7 @@ public class MinimaxPlayer extends StateMachineGamer
 
 		MachineState rootState = getCurrentState();
 		List<Move> moves = theMachine.getLegalMoves(rootState, getRole());
-
-		//System.out.println(theMachine.getRoles());
+		System.out.println(moves);
 		Move selection = null;
 
 		if (moves.size() == 1){
@@ -102,7 +101,7 @@ public class MinimaxPlayer extends StateMachineGamer
 
 		for(Move move: moves)
 		{
-			MachineState nextState = theMachine.getNextState(rootState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));//.getRandomNextState(rootState);
+			MachineState nextState = theMachine.getNextState(rootState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));
 			int result = minScore(nextState);
 			if(result > score)
 			{
@@ -133,16 +132,15 @@ public class MinimaxPlayer extends StateMachineGamer
 		{
 			//myself
 			if(role.equals(getRole()))
+			{
 				continue;
+			}
 
 			List<Move> moves = theMachine.getLegalMoves(currentState, role);
 			//System.out.println(moves);
 			for(Move move: moves)
 			{
-//				List<Move> jointMoves = new ArrayList<Move>();
-//				jointMoves.add(myMove);
-//				jointMoves.add(move);
-				MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(getCurrentState(), role, move));
+				MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(currentState, role, move));
 				int result = maxScore(nextState);
 				if(result < score)
 				{
@@ -165,9 +163,7 @@ public class MinimaxPlayer extends StateMachineGamer
 		//System.out.println(moves);
 		for(Move move: moves)
 		{
-			//List<Move> jointMoves = new ArrayList<Move>();
-			//jointMoves.add(move);
-			MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));//.getRandomNextState(rootState);
+			MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(currentState, getRole(), move));
 			int result = minScore(nextState);
 			if(result > score)
 			{
