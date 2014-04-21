@@ -90,6 +90,14 @@ public class MinimaxPlayer extends StateMachineGamer
 		//System.out.println(theMachine.getRoles());
 		Move selection = null;
 
+		if (moves.size() == 1){
+		  selection = moves.get(0);
+		  long stop = System.currentTimeMillis();
+
+      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
+      return selection;
+		}
+
 		int score = Integer.MIN_VALUE;
 
 		for(Move move: moves)
@@ -159,7 +167,6 @@ public class MinimaxPlayer extends StateMachineGamer
 		{
 			//List<Move> jointMoves = new ArrayList<Move>();
 			//jointMoves.add(move);
-			//MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));//.getRandomNextState(rootState);
 			MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));//.getRandomNextState(rootState);
 			int result = minScore(nextState);
 			if(result > score)
