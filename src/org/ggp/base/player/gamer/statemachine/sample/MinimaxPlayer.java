@@ -1,6 +1,5 @@
 package org.ggp.base.player.gamer.statemachine.sample;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import org.ggp.base.apps.player.detail.DetailPanel;
@@ -95,10 +94,8 @@ public class MinimaxPlayer extends StateMachineGamer
 
 		for(Move move: moves)
 		{
-			List<Move> jointMoves = new ArrayList<Move>();
-			jointMoves.add(move);
-			//MachineState nextState = theMachine.getNextState(rootState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));//.getRandomNextState(rootState);
-			int result = minScore(move, rootState);
+			MachineState nextState = theMachine.getNextState(rootState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));//.getRandomNextState(rootState);
+			int result = minScore(nextState);
 			if(result > score)
 			{
 				score = result;
@@ -114,10 +111,13 @@ public class MinimaxPlayer extends StateMachineGamer
 	    return selection;
 	}
 
-	private int minScore(Move myMove, MachineState currentState) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
+	private int minScore(MachineState currentState) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
 	{
 		StateMachine theMachine = getStateMachine();
-
+		if(theMachine.isTerminal(currentState))
+		{
+			return theMachine.getGoal(currentState, getRole());
+		}
 		int score = Integer.MAX_VALUE;
 		List<Role> roles = theMachine.getRoles();
 		//assuming two-player game
@@ -131,10 +131,10 @@ public class MinimaxPlayer extends StateMachineGamer
 			//System.out.println(moves);
 			for(Move move: moves)
 			{
-				List<Move> jointMoves = new ArrayList<Move>();
-				jointMoves.add(myMove);
-				jointMoves.add(move);
-				MachineState nextState = theMachine.getNextState(currentState, jointMoves);//.getRandomNextState(rootState);
+//				List<Move> jointMoves = new ArrayList<Move>();
+//				jointMoves.add(myMove);
+//				jointMoves.add(move);
+				MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(getCurrentState(), role, move));
 				int result = maxScore(nextState);
 				if(result < score)
 				{
@@ -160,7 +160,8 @@ public class MinimaxPlayer extends StateMachineGamer
 			//List<Move> jointMoves = new ArrayList<Move>();
 			//jointMoves.add(move);
 			//MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));//.getRandomNextState(rootState);
-			int result = minScore(move, currentState);
+			MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));//.getRandomNextState(rootState);
+			int result = minScore(nextState);
 			if(result > score)
 			{
 				score = result;
