@@ -98,10 +98,14 @@ public class DeliberationPlayer extends StateMachineGamer
 			jointMoves.add(move);
 			MachineState nextState = theMachine.getNextState(rootState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));//.getRandomNextState(rootState);
 			int result = maxScore(nextState);
+
 			if(result > score)
 			{
 				score = result;
 				selection = move;
+				if (score == 100){
+				  break;
+				}
 			}
 		}
 		//System.out.println(score);
@@ -127,6 +131,9 @@ public class DeliberationPlayer extends StateMachineGamer
 			jointMoves.add(move);
 			MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));//.getRandomNextState(rootState);
 			int result = maxScore(nextState);
+			if (result == 100){
+			  return 100;
+			}
 			if(result > score)
 			{
 				score = result;
