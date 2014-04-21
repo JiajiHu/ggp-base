@@ -29,12 +29,12 @@ import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
  * add the last core function : public Move stateMachineSelectMove(long timeout)
  */
 
-public class MinimaxPlayer extends StateMachineGamer
+public class AlphaBetaPlayer extends StateMachineGamer
 {
-	@Override
-	public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
-	{
-	  long currentTime = System.currentTimeMillis();
+  @Override
+  public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
+  {
+    long currentTime = System.currentTimeMillis();
     long finishBy = timeout - 1000;
     StateMachine stateMachine = getStateMachine();
     MachineState rootState = getCurrentState();
@@ -60,8 +60,7 @@ public class MinimaxPlayer extends StateMachineGamer
     System.out.println("MetaGaming done, Number of runs: "+ numRuns);
     System.out.println("MetaGaming done, Number of states explored: "+ numStatesExplored);
 
-	}
-
+  }
 
 
 	/** This will currently return "SampleGamer"
@@ -110,8 +109,8 @@ public class MinimaxPlayer extends StateMachineGamer
     long finishBy = timeout - 1000;
 
 
-		MachineState currentState = getCurrentState();
-		List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
+		MachineState rootState = getCurrentState();
+		List<Move> moves = theMachine.getLegalMoves(rootState, getRole());
 		Random random = new Random();
     Move selection = moves.get(random.nextInt(moves.size()));
     System.out.println(moves);
@@ -123,6 +122,11 @@ public class MinimaxPlayer extends StateMachineGamer
 		}
 
 		int score = Integer.MIN_VALUE;
+		int []alpha = new int[1];
+		int []beta = new int[1];
+
+		alpha[0] = Integer.MIN_VALUE;
+		beta[0] = Integer.MAX_VALUE;
 
 		for(Move move: moves)
 		{
@@ -132,8 +136,8 @@ public class MinimaxPlayer extends StateMachineGamer
 	      return selection;
 		  }
 
-		  MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(currentState, getRole(), move));
-			int result = minScore(nextState);
+		  MachineState nextState = theMachine.getNextState(rootState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));
+			int result = minScore(nextState, alpha, beta);
 			if(result > score)
 			{
 				score = result;
@@ -154,14 +158,13 @@ public class MinimaxPlayer extends StateMachineGamer
 	    return selection;
 	}
 
-	private int minScore(MachineState currentState) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
+	private int minScore(MachineState currentState, int[] alpha, int[] beta) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
 	{
 		StateMachine theMachine = getStateMachine();
 		if(theMachine.isTerminal(currentState))
 		{
 			return theMachine.getGoal(currentState, getRole());
 		}
-		int score = Integer.MAX_VALUE;
 		List<Role> roles = theMachine.getRoles();
 		//assuming two-player game
 		for(Role role: roles)
@@ -177,42 +180,36 @@ public class MinimaxPlayer extends StateMachineGamer
 			for(Move move: moves)
 			{
 				MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(currentState, role, move));
-				int result = maxScore(nextState);
-				if(result < score)
-				{
-					score = result;
-					if (score == 0){
-					  return score;
-					}
+				int result = maxScore(nextState, alpha, beta);
+				if(result == 0){
+				  return 0;
 				}
+				alpha[0] = Math.max(alpha[0], result);
+				if (alpha[0] <= beta[0]) return alpha[0];
 			}
 		}
-		return score;
+		return beta[0];
 	}
 
-	private int maxScore(MachineState currentState) throws GoalDefinitionException, MoveDefinitionException, TransitionDefinitionException
+	private int maxScore(MachineState currentState, int[] alpha, int[] beta) throws GoalDefinitionException, MoveDefinitionException, TransitionDefinitionException
 	{
 		StateMachine theMachine = getStateMachine();
 		if(theMachine.isTerminal(currentState))
 		{
 			return theMachine.getGoal(currentState, getRole());
 		}
-		int score = Integer.MIN_VALUE;
 		List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
 		//System.out.println(moves);
 		for(Move move: moves)
 		{
 			MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(currentState, getRole(), move));
-			int result = minScore(nextState);
-			if(result > score)
-			{
-				score = result;
-				if(score == 100){
-				  return score;
-				}
+			int result = minScore(nextState, alpha, beta);
+			if (result == 100){
+			  return 100;
 			}
+			alpha[0] = Math.max(alpha[0], result);
+			if (alpha[0] > beta[0]) return beta[0];
 		}
-		return score;
-
+		return alpha[0];
 	}
 }
