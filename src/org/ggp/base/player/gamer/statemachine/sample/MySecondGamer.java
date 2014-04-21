@@ -134,8 +134,9 @@ public class MySecondGamer extends StateMachineGamer
     }
     else {
       String FUUCKK = "FUUCKK";
-      return getUtility(getStateMachine().getNextState(state, FUUCKK));
+//      return getUtility(getStateMachine().getNextState(state, FUUCKK));
     }
+    return 0;
 	}
 	@Override
 	public String getName() {
