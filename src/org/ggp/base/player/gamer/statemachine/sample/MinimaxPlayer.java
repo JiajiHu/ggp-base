@@ -1,6 +1,7 @@
 package org.ggp.base.player.gamer.statemachine.sample;
 
 import java.util.List;
+import java.util.Random;
 
 import org.ggp.base.apps.player.detail.DetailPanel;
 import org.ggp.base.apps.player.detail.SimpleDetailPanel;
@@ -33,7 +34,31 @@ public class MinimaxPlayer extends StateMachineGamer
 	@Override
 	public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
 	{
-		// do nothing
+	  long currentTime = System.currentTimeMillis();
+    long finishBy = timeout - 1000;
+    StateMachine stateMachine = getStateMachine();
+    MachineState rootState = getCurrentState();
+    stateMachine.getInitialState();
+
+    MachineState currentState;
+    int numStatesExplored = 0;
+
+    while(true) {
+      currentState = rootState;
+
+      boolean isTerminal  = stateMachine.isTerminal(currentState);
+      while(!isTerminal) {
+        currentState = stateMachine.getRandomNextState(currentState);
+        isTerminal = stateMachine.isTerminal(currentState);
+        numStatesExplored++;
+      }
+
+      if(System.currentTimeMillis() > finishBy)
+        break;
+    }
+
+    System.out.println("MetaGaming done, Number of states explored: "+ numStatesExplored);
+
 	}
 
 
@@ -53,7 +78,7 @@ public class MinimaxPlayer extends StateMachineGamer
 		return new CachedStateMachine(new ProverStateMachine());
 	}
 
-	// This is the defaul Sample Panel
+	// This is the default Sample Panel
 	@Override
 	public DetailPanel getDetailPanel() {
 		return new SimpleDetailPanel();
@@ -83,14 +108,16 @@ public class MinimaxPlayer extends StateMachineGamer
 
 		StateMachine theMachine = getStateMachine();
 		long start = System.currentTimeMillis();
+    long finishBy = timeout - 1000;
+
 
 		MachineState rootState = getCurrentState();
 		List<Move> moves = theMachine.getLegalMoves(rootState, getRole());
-		System.out.println(moves);
-		Move selection = null;
+		Random random = new Random();
+    Move selection = moves.get(random.nextInt(moves.size()));
+    System.out.println(moves);
 
 		if (moves.size() == 1){
-		  selection = moves.get(0);
 		  long stop = System.currentTimeMillis();
 
       notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
@@ -101,18 +128,29 @@ public class MinimaxPlayer extends StateMachineGamer
 
 		for(Move move: moves)
 		{
-			MachineState nextState = theMachine.getNextState(rootState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));
+		  if(System.currentTimeMillis() > finishBy){
+		    long stop = System.currentTimeMillis();
+	      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
+	      return selection;
+		  }
+
+		  MachineState nextState = theMachine.getNextState(rootState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));
 			int result = minScore(nextState);
 			if(result > score)
 			{
 				score = result;
 				selection = move;
+				if (score == 100){
+				  long stop = System.currentTimeMillis();
+		      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
+		      return selection;
+				}
 			}
 		}
-		System.out.println("max score:");
-		System.out.println(score);
-		System.out.println(selection);
-	    long stop = System.currentTimeMillis();
+  		System.out.println("max score:");
+  		System.out.println(score);
+  		System.out.println(selection);
+  	  long stop = System.currentTimeMillis();
 
 	    notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
 	    return selection;
@@ -145,6 +183,9 @@ public class MinimaxPlayer extends StateMachineGamer
 				if(result < score)
 				{
 					score = result;
+					if (score == 0){
+					  return score;
+					}
 				}
 			}
 		}
@@ -168,6 +209,9 @@ public class MinimaxPlayer extends StateMachineGamer
 			if(result > score)
 			{
 				score = result;
+				if(score == 100){
+				  return score;
+				}
 			}
 		}
 		return score;
