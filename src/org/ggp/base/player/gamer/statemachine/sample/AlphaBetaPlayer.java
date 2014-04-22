@@ -43,11 +43,13 @@ public class AlphaBetaPlayer extends StateMachineGamer
     MachineState currentState;
     int numStatesExplored = 0;
     int numRuns = 0;
+    int validMoves = 0;
     while(true) {
       currentState = rootState;
       numRuns++;
       boolean isTerminal  = stateMachine.isTerminal(currentState);
       while(!isTerminal) {
+        validMoves = validMoves + stateMachine.getLegalJointMoves(currentState).size();
         currentState = stateMachine.getRandomNextState(currentState);
         isTerminal = stateMachine.isTerminal(currentState);
         numStatesExplored++;
@@ -57,8 +59,12 @@ public class AlphaBetaPlayer extends StateMachineGamer
         break;
     }
 
-    System.out.println("MetaGaming done, Number of runs: "+ numRuns);
-    System.out.println("MetaGaming done, Number of states explored: "+ numStatesExplored);
+    System.out.println("MetaGaming done");
+    System.out.println("Number of runs made: "+numRuns);
+    System.out.println("Number of states explored: "+ numStatesExplored);
+    System.out.println("Estimated depth: "+ (numStatesExplored+0.0)/numRuns);
+    System.out.println("Estimated branching factor: "+ (validMoves+0.0)/numStatesExplored);
+
 
   }
 
@@ -100,9 +106,7 @@ public class AlphaBetaPlayer extends StateMachineGamer
 	}
 
 	@Override
-	public Move stateMachineSelectMove(long timeout)
-			throws TransitionDefinitionException, MoveDefinitionException,
-			GoalDefinitionException {
+	public Move stateMachineSelectMove(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
 
 		StateMachine theMachine = getStateMachine();
 		long start = System.currentTimeMillis();
@@ -122,11 +126,9 @@ public class AlphaBetaPlayer extends StateMachineGamer
 		}
 
 		int score = Integer.MIN_VALUE;
-		int []alpha = new int[1];
-		int []beta = new int[1];
+		int alpha = Integer.MIN_VALUE;
+		int beta = Integer.MAX_VALUE;
 
-		alpha[0] = Integer.MIN_VALUE;
-		beta[0] = Integer.MAX_VALUE;
 
 		for(Move move: moves)
 		{
@@ -143,10 +145,13 @@ public class AlphaBetaPlayer extends StateMachineGamer
 				score = result;
 				selection = move;
 				if (score == 100){
+		      System.out.println("max score: 100");
+		      System.out.println(selection);
 				  long stop = System.currentTimeMillis();
 		      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
 		      return selection;
 				}
+				alpha = Math.max(alpha, result);
 			}
 		}
   		System.out.println("max score:");
@@ -158,7 +163,7 @@ public class AlphaBetaPlayer extends StateMachineGamer
 	    return selection;
 	}
 
-	private int minScore(MachineState currentState, int[] alpha, int[] beta) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
+	private int minScore(MachineState currentState, int alpha, int beta) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
 	{
 		StateMachine theMachine = getStateMachine();
 		if(theMachine.isTerminal(currentState))
@@ -184,14 +189,14 @@ public class AlphaBetaPlayer extends StateMachineGamer
 				if(result == 0){
 				  return 0;
 				}
-				alpha[0] = Math.max(alpha[0], result);
-				if (alpha[0] <= beta[0]) return alpha[0];
+				beta = Math.min(beta, result);
+				if (beta <= alpha) return alpha;
 			}
 		}
-		return beta[0];
+		return beta;
 	}
 
-	private int maxScore(MachineState currentState, int[] alpha, int[] beta) throws GoalDefinitionException, MoveDefinitionException, TransitionDefinitionException
+	private int maxScore(MachineState currentState, int alpha, int beta) throws GoalDefinitionException, MoveDefinitionException, TransitionDefinitionException
 	{
 		StateMachine theMachine = getStateMachine();
 		if(theMachine.isTerminal(currentState))
@@ -207,9 +212,9 @@ public class AlphaBetaPlayer extends StateMachineGamer
 			if (result == 100){
 			  return 100;
 			}
-			alpha[0] = Math.max(alpha[0], result);
-			if (alpha[0] > beta[0]) return beta[0];
+			alpha = Math.max(alpha, result);
+			if (alpha >= beta) return beta;
 		}
-		return alpha[0];
+		return alpha;
 	}
 }
