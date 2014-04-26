@@ -97,7 +97,7 @@ public class ThePlayerV1 extends StateMachineGamer
 		StateMachine theMachine = getStateMachine();
 		long start = System.currentTimeMillis();
     long finishBy = timeout - 1000;
-
+    int depth = 5;
 
 		MachineState currentState = getCurrentState();
 		List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
@@ -119,11 +119,12 @@ public class ThePlayerV1 extends StateMachineGamer
 		{
 		  if(System.currentTimeMillis() > finishBy){
 		    long stop = System.currentTimeMillis();
+		    System.out.println("OMG I'm gonna time out!!!!!!!!!");
 	      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
 	      return selection;
 		  }
 
-		  int result = minScore(currentState, move, alpha, beta);
+		  int result = minScore(currentState, move, alpha, beta, depth);
 			if(result > score)
 			{
 				score = result;
@@ -146,7 +147,7 @@ public class ThePlayerV1 extends StateMachineGamer
 	    return selection;
 	}
 
-	private int minScore(MachineState currentState, Move move, int alpha, int beta) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
+	private int minScore(MachineState currentState, Move move, int alpha, int beta, int depth) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
 	{
 	  StateMachine theMachine = getStateMachine();
     List<List<Move>> list_moves = theMachine.getLegalJointMoves(currentState, getRole(), move);
@@ -156,13 +157,21 @@ public class ThePlayerV1 extends StateMachineGamer
       if(theMachine.isTerminal(nextState)) {
         int terminal = theMachine.getGoal(nextState, getRole());
         beta = Math.min(beta, terminal);
-        if(terminal == 0)
+        if (terminal == 0)
+          return 0;
+        if (beta <= alpha)
+          return alpha;
+      }
+      else if (depth == 0) {
+        int h_score = 20;
+        beta = Math.min(beta, h_score);
+        if(h_score == 0)
           return 0;
         if (beta <= alpha)
           return alpha;
       }
       else {
-        int highest = maxScore(nextState, alpha, beta);
+        int highest = maxScore(nextState, alpha, beta, depth);
         beta = Math.min(beta, highest);
         if(highest == 0)
           return 0;
@@ -173,12 +182,12 @@ public class ThePlayerV1 extends StateMachineGamer
     return beta;
   }
 
-	private int maxScore(MachineState nextState, int alpha, int beta) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException{
+	private int maxScore(MachineState nextState, int alpha, int beta, int depth) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException{
 	  StateMachine theMachine = getStateMachine();
     List<Move> nextMoves = theMachine.getLegalMoves(nextState, getRole());
 
     for (Move nextMove: nextMoves){
-      int result = minScore(nextState, nextMove, alpha, beta);
+      int result = minScore(nextState, nextMove, alpha, beta, depth-1);
       alpha = Math.max(alpha, result);
       if(result == 100)
         return 100;
