@@ -118,7 +118,7 @@ public class MultiMinimaxPlayer extends StateMachineGamer
 	      return selection;
 		  }
 
-		  int result = nextScore(currentState, move);
+		  int result = minScore(currentState, move);
 			if(result > score)
 			{
 				score = result;
@@ -141,7 +141,7 @@ public class MultiMinimaxPlayer extends StateMachineGamer
 	    return selection;
 	}
 
-	private int nextScore(MachineState currentState, Move move) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
+	private int minScore(MachineState currentState, Move move) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
 	{
 	  StateMachine theMachine = getStateMachine();
     List<List<Move>> list_moves = theMachine.getLegalJointMoves(currentState, getRole(), move);
@@ -152,26 +152,32 @@ public class MultiMinimaxPlayer extends StateMachineGamer
       MachineState nextState = theMachine.getNextState(currentState, moves);
       if(theMachine.isTerminal(nextState)) {
         int terminal = theMachine.getGoal(nextState, getRole());
-//        if(terminal == 0){
-//          return 0;
-//        }
+        if(terminal == 0){
+          return 0;
+        }
         lowest = Math.min(lowest, terminal);
       }
       else {
-        List<Move> nextMoves = theMachine.getLegalMoves(nextState, getRole());
-        int highest = Integer.MIN_VALUE;
-
-        for (Move nextMove: nextMoves){
-          int result = nextScore(nextState, nextMove);
-//          if(result == 100){
-//            highest = result;
-//            break;
-//          }
-          highest = Math.max(highest, result);
-        }
+        int highest = maxScore(nextState);
         lowest = Math.min(lowest, highest);
       }
     }
     return lowest;
   }
+
+	private int maxScore(MachineState nextState) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException{
+	  StateMachine theMachine = getStateMachine();
+    List<Move> nextMoves = theMachine.getLegalMoves(nextState, getRole());
+    int highest = Integer.MIN_VALUE;
+
+    for (Move nextMove: nextMoves){
+      int result = minScore(nextState, nextMove);
+      if(result == 100){
+        highest = result;
+        break;
+      }
+      highest = Math.max(highest, result);
+    }
+    return highest;
+	}
 }
