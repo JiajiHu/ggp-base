@@ -1,7 +1,9 @@
 package org.ggp.base.player.gamer.statemachine.sample;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import org.ggp.base.apps.player.detail.DetailPanel;
 import org.ggp.base.apps.player.detail.SimpleDetailPanel;
@@ -40,21 +42,17 @@ public class ThePlayerV1 extends StateMachineGamer
 		List<List <Move> > jointMoves = stateMachine.getLegalJointMoves(state);
 		int myIndex = stateMachine.getRoles().indexOf(getRole());
 
-		int totalMoves
-		for(int i = 0; i < jointMoves.size(); i++)
-		{
-			for(int j = 0; j < jointMoves.get(i).size(); j++)
-			{
-				if(j == myIndex)
-					continue;
-
+		int totalMoves = 0;
+		for (int i = 0; i < stateMachine.getRoles().size(); i++) {
+			if (i == myIndex) continue;
+			Set<Move> playerMoves = new HashSet<Move>();
+			for (int j = 0; j < jointMoves.size(); j ++) {
+				playerMoves.add(jointMoves.get(j).get(i));
 			}
+			totalMoves += playerMoves.size();
 		}
 
-		int numMoves =
-		int maxMoves = stateMachine.getLegalMoves(stateMachine.getInitialState(), getRole()).size();
-
-		return 60 * numMoves / maxMoves;
+		return totalMoves / (stateMachine.getRoles().size() - 1);
 
 	}
 
