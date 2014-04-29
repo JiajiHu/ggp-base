@@ -202,10 +202,12 @@ public class ThePlayerV2 extends StateMachineGamer
       MachineState nextState = theMachine.getNextState(currentState, moves);
       if(theMachine.isTerminal(nextState)) {
         double terminal = theMachine.getGoal(nextState, getRole());
-        beta = Math.min(beta, terminal);
         if (terminal == 0){
+          terminal = terminal + 0.001*(max_depth-depth);
+          beta = Math.min(beta, terminal);
           return terminal;
         }
+        beta = Math.min(beta, terminal);
         if (beta <= alpha)
           return alpha;
       }
@@ -220,8 +222,8 @@ public class ThePlayerV2 extends StateMachineGamer
       else {
         double highest = maxScore(nextState, alpha, beta, depth, finishBy);
         beta = Math.min(beta, highest);
-        if(highest < 1)
-          return highest;
+//        if(highest < 1)
+//          return highest;
         if (beta <= alpha)
           return alpha;
       }
