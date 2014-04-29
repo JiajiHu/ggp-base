@@ -20,15 +20,19 @@ import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 
 
-// THE Player. version 1. Apr.26.2014.
-// depth limited heuristic alpha-beta player
+// THE Player. version 2. Apr.28.2014.
+// depth limited heuristic alpha-beta player + interative deepening
 
-public class ThePlayerV1 extends StateMachineGamer
+public class ThePlayerV2 extends StateMachineGamer
 {
 
-  static int MAX_DEPTH = 5;
+  static int HEUR_MIN_SCORE = 20;
+  static int HEUR_MAX_SCORE = 80;
+
+  int max_depth = 1;
   int most_moves = 0;
   int least_moves = 0;
+
 
 	private int calMobility(MachineState state) throws MoveDefinitionException
 	{
@@ -66,10 +70,13 @@ public class ThePlayerV1 extends StateMachineGamer
 		return 0;
 	}
 
+	private int getHeuristicScore(MachineState state){
+	  return 20;
+	}
+
 	@Override
 	public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
 	{
-		long currentTime = System.currentTimeMillis();
 		long finishBy = timeout - 1000;
 		StateMachine stateMachine = getStateMachine();
 		MachineState rootState = getCurrentState();
@@ -126,44 +133,56 @@ public class ThePlayerV1 extends StateMachineGamer
 		StateMachine theMachine = getStateMachine();
 		long start = System.currentTimeMillis();
     long finishBy = timeout - 1000;
-    int depth = MAX_DEPTH;
+    max_depth = 1;
 
     MachineState currentState = getCurrentState();
 		List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
 		Random random = new Random();
 		Move selection = moves.get(random.nextInt(moves.size()));
+//		Move selection = moves.get(0);
 		System.out.println(moves);
+		Move temp_selection;
+		int score = 0;
 
 		if (moves.size() == 1){
 	    return exitSequence(moves, selection, start, timeout);
 	  }
 
-		int score = Integer.MIN_VALUE;
-		int alpha = Integer.MIN_VALUE;
-		int beta = Integer.MAX_VALUE;
+		while (max_depth < Integer.MAX_VALUE){
+	    int temp_score = Integer.MIN_VALUE;
+	    int alpha = Integer.MIN_VALUE;
+	    int beta = Integer.MAX_VALUE;
+      temp_selection = moves.get(random.nextInt(moves.size()));
+	    for(Move move: moves)
+	    {
+	      if(System.currentTimeMillis() > finishBy){
+	        System.out.println("OMG I'm gonna time out!!!!!!!!!");
+	        if(temp_score >= score){
+	          selection = temp_selection;
+	          score = temp_score;
+	        }
+	        System.out.println("move: "+selection+" score: "+score);
+	        return exitSequence(moves, selection, start, timeout);
+	      }
 
-		for(Move move: moves)
-		{
-		  if(System.currentTimeMillis() > finishBy){
-		    System.out.println("OMG I'm gonna time out!!!!!!!!!");
-		    return exitSequence(moves, selection, start, timeout);
-		  }
-
-		  int result = minScore(currentState, move, alpha, beta, depth);
-			if(result > score)
-			{
-				score = result;
-				selection = move;
-				if (score == 100){
-					System.out.println("max score: 100");
-					System.out.println(selection);
-			    return exitSequence(moves, selection, start, timeout);
-				}
-			}
+	      int result = minScore(currentState, move, alpha, beta, max_depth, finishBy);
+	      if(result > temp_score)
+	      {
+	        temp_score = result;
+	        temp_selection = move;
+	        if (temp_score == 100){
+	          System.out.println("max score: 100");
+	          System.out.println(temp_selection);
+	          return exitSequence(moves, temp_selection, start, timeout);
+	        }
+	      }
+	    }
+	    selection = temp_selection;
+	    score = temp_score;
+	    max_depth++;
+      System.out.println("Current searching depth set to "+max_depth);
 		}
-		System.out.println("max score:");
-		System.out.println(score);
-		System.out.println(selection);
+		System.out.println("selection: "+selection);
 
 		return exitSequence(moves, selection, start, timeout);
 	}
@@ -175,7 +194,7 @@ public class ThePlayerV1 extends StateMachineGamer
     return selection;
 	}
 
-	private int minScore(MachineState currentState, Move move, int alpha, int beta, int depth) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
+	private int minScore(MachineState currentState, Move move, int alpha, int beta, int depth, long finishBy) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
 	{
 	  StateMachine theMachine = getStateMachine();
     List<List<Move>> list_moves = theMachine.getLegalJointMoves(currentState, getRole(), move);
@@ -190,8 +209,8 @@ public class ThePlayerV1 extends StateMachineGamer
         if (beta <= alpha)
           return alpha;
       }
-      else if (depth == 0) {
-        int h_score = 20;
+      else if (depth == 0 || (max_depth-depth < 3 && System.currentTimeMillis() > finishBy)) {
+        int h_score = getHeuristicScore(nextState);
         beta = Math.min(beta, h_score);
         if(h_score == 0)
           return h_score;
@@ -199,7 +218,7 @@ public class ThePlayerV1 extends StateMachineGamer
           return alpha;
       }
       else {
-        int highest = maxScore(nextState, alpha, beta, depth);
+        int highest = maxScore(nextState, alpha, beta, depth, finishBy);
         beta = Math.min(beta, highest);
         if(highest == 0)
           return highest;
@@ -210,12 +229,12 @@ public class ThePlayerV1 extends StateMachineGamer
     return beta;
   }
 
-	private int maxScore(MachineState nextState, int alpha, int beta, int depth) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException{
+	private int maxScore(MachineState nextState, int alpha, int beta, int depth, long finishBy) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException{
 	  StateMachine theMachine = getStateMachine();
     List<Move> nextMoves = theMachine.getLegalMoves(nextState, getRole());
 
     for (Move nextMove: nextMoves){
-      int result = minScore(nextState, nextMove, alpha, beta, depth-1);
+      int result = minScore(nextState, nextMove, alpha, beta, depth-1, finishBy);
       alpha = Math.max(alpha, result);
       if(result == 100)
         return result;
