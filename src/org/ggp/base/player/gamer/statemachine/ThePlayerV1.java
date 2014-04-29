@@ -23,8 +23,13 @@ import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 
 // THE Player. version 1. Apr.26.2014.
 // depth limited heuristic alpha-beta player
+
 public class ThePlayerV1 extends StateMachineGamer
 {
+
+  static int MAX_DEPTH = 5;
+  int most_moves = 0;
+  int least_moves = 0;
 
 	private int calMobility(MachineState state) throws MoveDefinitionException
 	{
@@ -97,46 +102,32 @@ public class ThePlayerV1 extends StateMachineGamer
 		System.out.println("Estimated branching factor: "+ (validMoves+0.0)/numStatesExplored);
 	}
 
+	public void stateMachineExplore(long timeout, Move move) throws MoveDefinitionException, TransitionDefinitionException
+  {
+    long finishBy = timeout - 1000;
+    StateMachine stateMachine = getStateMachine();
+    MachineState rootState = getCurrentState();
+
+    MachineState currentState;
+    while(true) {
+      if(System.currentTimeMillis() > finishBy)
+        break;
+      currentState = stateMachine.getRandomNextState(rootState, getRole(), move);
+      boolean isTerminal  = stateMachine.isTerminal(currentState);
+      while(!isTerminal) {
+        currentState = stateMachine.getRandomNextState(currentState);
+        isTerminal = stateMachine.isTerminal(currentState);
+      }
+    }
+  }
 
 	@Override
-	public String getName() {
-		return getClass().getSimpleName();
-	}
-
-	// This is the default State Machine
-	@Override
-	public StateMachine getInitialStateMachine() {
-		return new CachedStateMachine(new ProverStateMachine());
-	}
-
-	// This is the default Sample Panel
-	@Override
-	public DetailPanel getDetailPanel() {
-		return new SimpleDetailPanel();
-	}
-
-	@Override
-	public void stateMachineStop() {
-		// Sample gamers do no special cleanup when the match ends normally.
-	}
-
-	@Override
-	public void stateMachineAbort() {
-		// Sample gamers do no special cleanup when the match ends abruptly.
-	}
-
-	@Override
-	public void preview(Game g, long timeout) throws GamePreviewException {
-		// Sample gamers do no game previewing.
-	}
-
-	@Override
-	public Move stateMachineSelectMove(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
-
+	public Move stateMachineSelectMove(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
+	{
 		StateMachine theMachine = getStateMachine();
 		long start = System.currentTimeMillis();
     long finishBy = timeout - 1000;
-    int depth = 5;
+    int depth = MAX_DEPTH;
 
     MachineState currentState = getCurrentState();
 		List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
@@ -145,10 +136,8 @@ public class ThePlayerV1 extends StateMachineGamer
 		System.out.println(moves);
 
 		if (moves.size() == 1){
-			long stop = System.currentTimeMillis();
-			notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
-			return selection;
-		}
+	    return exitSequence(moves, selection, start, timeout);
+	  }
 
 		int score = Integer.MIN_VALUE;
 		int alpha = Integer.MIN_VALUE;
@@ -157,10 +146,8 @@ public class ThePlayerV1 extends StateMachineGamer
 		for(Move move: moves)
 		{
 		  if(System.currentTimeMillis() > finishBy){
-		    long stop = System.currentTimeMillis();
 		    System.out.println("OMG I'm gonna time out!!!!!!!!!");
-	      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
-	      return selection;
+		    return exitSequence(moves, selection, start, timeout);
 		  }
 
 		  int result = minScore(currentState, move, alpha, beta, depth);
@@ -171,19 +158,22 @@ public class ThePlayerV1 extends StateMachineGamer
 				if (score == 100){
 					System.out.println("max score: 100");
 					System.out.println(selection);
-					long stop = System.currentTimeMillis();
-					notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
-					return selection;
+			    return exitSequence(moves, selection, start, timeout);
 				}
 			}
 		}
 		System.out.println("max score:");
 		System.out.println(score);
 		System.out.println(selection);
-		long stop = System.currentTimeMillis();
 
-		notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
-		return selection;
+		return exitSequence(moves, selection, start, timeout);
+	}
+
+	private Move exitSequence(List<Move> moves, Move selection, long start, long timeout) throws TransitionDefinitionException, MoveDefinitionException{
+	  stateMachineExplore(timeout, selection);
+	  long stop = System.currentTimeMillis();
+    notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
+    return selection;
 	}
 
 	private int minScore(MachineState currentState, Move move, int alpha, int beta, int depth) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
@@ -197,7 +187,7 @@ public class ThePlayerV1 extends StateMachineGamer
         int terminal = theMachine.getGoal(nextState, getRole());
         beta = Math.min(beta, terminal);
         if (terminal == 0)
-          return 0;
+          return terminal;
         if (beta <= alpha)
           return alpha;
       }
@@ -205,7 +195,7 @@ public class ThePlayerV1 extends StateMachineGamer
         int h_score = 20;
         beta = Math.min(beta, h_score);
         if(h_score == 0)
-          return 0;
+          return h_score;
         if (beta <= alpha)
           return alpha;
       }
@@ -213,7 +203,7 @@ public class ThePlayerV1 extends StateMachineGamer
         int highest = maxScore(nextState, alpha, beta, depth);
         beta = Math.min(beta, highest);
         if(highest == 0)
-          return 0;
+          return highest;
         if (beta <= alpha)
           return alpha;
       }
@@ -229,10 +219,43 @@ public class ThePlayerV1 extends StateMachineGamer
       int result = minScore(nextState, nextMove, alpha, beta, depth-1);
       alpha = Math.max(alpha, result);
       if(result == 100)
-        return 100;
+        return result;
       if (alpha >= beta)
         return beta;
     }
     return alpha;
 	}
+	@Override
+	public String getName() {
+	  return getClass().getSimpleName();
+	}
+
+	// This is the default State Machine
+	@Override
+	public StateMachine getInitialStateMachine() {
+	  return new CachedStateMachine(new ProverStateMachine());
+	}
+
+	// This is the default Sample Panel
+	@Override
+	public DetailPanel getDetailPanel() {
+	  return new SimpleDetailPanel();
+	}
+
+	@Override
+	public void stateMachineStop() {
+	  // Sample gamers do no special cleanup when the match ends normally.
+	}
+
+	@Override
+	public void stateMachineAbort() {
+	  // Sample gamers do no special cleanup when the match ends abruptly.
+	}
+
+	@Override
+	public void preview(Game g, long timeout) throws GamePreviewException {
+	  // Sample gamers do no game previewing.
+	}
 }
+
+
