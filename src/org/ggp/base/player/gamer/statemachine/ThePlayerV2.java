@@ -33,8 +33,7 @@ public class ThePlayerV2 extends StateMachineGamer
   int most_moves = 0;
   int least_moves = 0;
 
-
-	private int calMobility(MachineState state) throws MoveDefinitionException
+	private double calMobility(MachineState state) throws MoveDefinitionException
 	{
 		StateMachine stateMachine = getStateMachine();
 		int numMoves = stateMachine.getLegalMoves(state, getRole()).size();
@@ -44,7 +43,7 @@ public class ThePlayerV2 extends StateMachineGamer
 
 	}
 
-	private int calFocus(MachineState state) throws MoveDefinitionException
+	private double calFocus(MachineState state) throws MoveDefinitionException
 	{
 		StateMachine stateMachine = getStateMachine();
 		List<List <Move> > jointMoves = stateMachine.getLegalJointMoves(state);
@@ -64,14 +63,14 @@ public class ThePlayerV2 extends StateMachineGamer
 
 	}
 
-	private int goalProximity(MachineState state) throws GoalDefinitionException
+	private double goalProximity(MachineState state) throws GoalDefinitionException
 	{
 		StateMachine stateMachine = getStateMachine();
 		return 0;
 	}
 
-	private int getHeuristicScore(MachineState state){
-	  return 20;
+	private double getHeuristicScore(MachineState state){
+	  return 20.001;
 	}
 
 	@Override
@@ -139,25 +138,24 @@ public class ThePlayerV2 extends StateMachineGamer
 		List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
 		Random random = new Random();
 		Move selection = moves.get(random.nextInt(moves.size()));
-//		Move selection = moves.get(0);
 		System.out.println(moves);
 		Move temp_selection;
-		int score = 0;
+		double score = 0;
 
 		if (moves.size() == 1){
 	    return exitSequence(moves, selection, start, timeout);
 	  }
 
 		while (max_depth < Integer.MAX_VALUE){
-	    int temp_score = Integer.MIN_VALUE;
-	    int alpha = Integer.MIN_VALUE;
-	    int beta = Integer.MAX_VALUE;
+	    double temp_score = Integer.MIN_VALUE;
+	    double alpha = Integer.MIN_VALUE;
+	    double beta = Integer.MAX_VALUE;
       temp_selection = moves.get(random.nextInt(moves.size()));
 	    for(Move move: moves)
 	    {
 	      if(System.currentTimeMillis() > finishBy){
 	        System.out.println("OMG I'm gonna time out!!!!!!!!!");
-	        if(temp_score >= score){
+	        if(((int)temp_score == temp_score)&&(temp_score >= score)){
 	          selection = temp_selection;
 	          score = temp_score;
 	        }
@@ -165,7 +163,7 @@ public class ThePlayerV2 extends StateMachineGamer
 	        return exitSequence(moves, selection, start, timeout);
 	      }
 
-	      int result = minScore(currentState, move, alpha, beta, max_depth, finishBy);
+	      double result = minScore(currentState, move, alpha, beta, max_depth, finishBy);
 	      if(result > temp_score)
 	      {
 	        temp_score = result;
@@ -190,11 +188,12 @@ public class ThePlayerV2 extends StateMachineGamer
 	private Move exitSequence(List<Move> moves, Move selection, long start, long timeout) throws TransitionDefinitionException, MoveDefinitionException{
 	  stateMachineExplore(timeout, selection);
 	  long stop = System.currentTimeMillis();
+	  System.out.println("time left: "+(stop-start));
     notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
     return selection;
 	}
 
-	private int minScore(MachineState currentState, Move move, int alpha, int beta, int depth, long finishBy) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
+	private double minScore(MachineState currentState, Move move, double alpha, double beta, int depth, long finishBy) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
 	{
 	  StateMachine theMachine = getStateMachine();
     List<List<Move>> list_moves = theMachine.getLegalJointMoves(currentState, getRole(), move);
@@ -202,15 +201,16 @@ public class ThePlayerV2 extends StateMachineGamer
     for (List<Move> moves: list_moves){
       MachineState nextState = theMachine.getNextState(currentState, moves);
       if(theMachine.isTerminal(nextState)) {
-        int terminal = theMachine.getGoal(nextState, getRole());
+        double terminal = theMachine.getGoal(nextState, getRole());
         beta = Math.min(beta, terminal);
-        if (terminal == 0)
+        if (terminal == 0){
           return terminal;
+        }
         if (beta <= alpha)
           return alpha;
       }
-      else if (depth == 0 || (max_depth-depth < 3 && System.currentTimeMillis() > finishBy)) {
-        int h_score = getHeuristicScore(nextState);
+      else if (depth == 0 || (max_depth-depth < 2 && System.currentTimeMillis() > finishBy)) {
+        double h_score = getHeuristicScore(nextState);
         beta = Math.min(beta, h_score);
         if(h_score == 0)
           return h_score;
@@ -218,9 +218,9 @@ public class ThePlayerV2 extends StateMachineGamer
           return alpha;
       }
       else {
-        int highest = maxScore(nextState, alpha, beta, depth, finishBy);
+        double highest = maxScore(nextState, alpha, beta, depth, finishBy);
         beta = Math.min(beta, highest);
-        if(highest == 0)
+        if(highest < 1)
           return highest;
         if (beta <= alpha)
           return alpha;
@@ -229,14 +229,14 @@ public class ThePlayerV2 extends StateMachineGamer
     return beta;
   }
 
-	private int maxScore(MachineState nextState, int alpha, int beta, int depth, long finishBy) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException{
+	private double maxScore(MachineState nextState, double alpha, double beta, int depth, long finishBy) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException{
 	  StateMachine theMachine = getStateMachine();
     List<Move> nextMoves = theMachine.getLegalMoves(nextState, getRole());
 
     for (Move nextMove: nextMoves){
-      int result = minScore(nextState, nextMove, alpha, beta, depth-1, finishBy);
+      double result = minScore(nextState, nextMove, alpha, beta, depth-1, finishBy);
       alpha = Math.max(alpha, result);
-      if(result == 100)
+      if(result > 99)
         return result;
       if (alpha >= beta)
         return beta;
