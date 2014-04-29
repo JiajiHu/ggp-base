@@ -30,27 +30,45 @@ public class ThePlayerV2 extends StateMachineGamer
   int max_depth = 1;
   int most_moves;
   int least_moves;
+//  double[] heur_weight = new double[3];
+  double[] heur_weight = {0.1,0.1,0.1};
 
 	private double mobility(MachineState state) throws MoveDefinitionException
 	{
 		int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
-		return (numMoves-least_moves+0.0)/(most_moves-least_moves)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+HEUR_MIN_SCORE+0.001;
+		return (int)((numMoves-least_moves+0.0)/(most_moves-least_moves)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+0.5)+HEUR_MIN_SCORE+0.001;
 	}
 
 	private double focus(MachineState state) throws MoveDefinitionException
 	{
     int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
-    return (most_moves-numMoves+0.0)/(most_moves-least_moves)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+HEUR_MIN_SCORE+0.001;
+    return (int)((most_moves-numMoves+0.0)/(most_moves-least_moves)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+0.5)+HEUR_MIN_SCORE+0.001;
 	}
 
 	private double goalProximity(MachineState state) throws GoalDefinitionException
 	{
 		StateMachine stateMachine = getStateMachine();
-		return (stateMachine.getGoal(state, getRole())+0.0)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+HEUR_MIN_SCORE+0.001;
+		return (int)((stateMachine.getGoal(state, getRole())+0.0)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+0.5)+HEUR_MIN_SCORE+0.001;
 	}
 
-	private double getHeuristicScore(MachineState state){
-	  return 20.001;
+	private double getHeuristicScore(MachineState state) throws MoveDefinitionException, GoalDefinitionException{
+	  double score = 0;
+	  double normalize = 0;
+    if (heur_weight[0] > 0){
+	    score = score + heur_weight[0]*mobility(state);
+	    normalize = normalize+heur_weight[0];
+    }
+	  if (heur_weight[1] > 0){
+	    score = score + heur_weight[1]*focus(state);
+	    normalize = normalize+heur_weight[1];
+	  }
+	  if (heur_weight[2] > 0){
+	    score = score + heur_weight[2]*goalProximity(state);
+	    normalize = normalize+heur_weight[2];
+	  }
+
+	  score = score/normalize;
+	  return (int)(score+0.5)+0.001;
 	}
 
 	@Override
