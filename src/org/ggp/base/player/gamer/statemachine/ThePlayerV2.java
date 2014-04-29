@@ -1,9 +1,7 @@
 package org.ggp.base.player.gamer.statemachine;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 
 import org.ggp.base.apps.player.detail.DetailPanel;
 import org.ggp.base.apps.player.detail.SimpleDetailPanel;
@@ -26,47 +24,29 @@ import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 public class ThePlayerV2 extends StateMachineGamer
 {
 
-  static int HEUR_MIN_SCORE = 20;
-  static int HEUR_MAX_SCORE = 80;
+  static double HEUR_MIN_SCORE = 20;
+  static double HEUR_MAX_SCORE = 80;
 
   int max_depth = 1;
-  int most_moves = 0;
-  int least_moves = 0;
+  int most_moves;
+  int least_moves;
 
-	private double calMobility(MachineState state) throws MoveDefinitionException
+	private double mobility(MachineState state) throws MoveDefinitionException
 	{
-		StateMachine stateMachine = getStateMachine();
-		int numMoves = stateMachine.getLegalMoves(state, getRole()).size();
-		int proxMaxMoves = stateMachine.getLegalMoves(stateMachine.getInitialState(), getRole()).size();
-
-		return Math.min(80 * numMoves / proxMaxMoves, 80);
-
+		int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
+		return (numMoves-least_moves+0.0)/(most_moves-least_moves)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+HEUR_MIN_SCORE+0.001;
 	}
 
-	private double calFocus(MachineState state) throws MoveDefinitionException
+	private double focus(MachineState state) throws MoveDefinitionException
 	{
-		StateMachine stateMachine = getStateMachine();
-		List<List <Move> > jointMoves = stateMachine.getLegalJointMoves(state);
-		int myIndex = stateMachine.getRoles().indexOf(getRole());
-
-		int totalMoves = 0;
-		for (int i = 0; i < stateMachine.getRoles().size(); i++) {
-			if (i == myIndex) continue;
-			Set<Move> playerMoves = new HashSet<Move>();
-			for (int j = 0; j < jointMoves.size(); j ++) {
-				playerMoves.add(jointMoves.get(j).get(i));
-			}
-			totalMoves += playerMoves.size();
-		}
-
-		return totalMoves / (stateMachine.getRoles().size() - 1);
-
+    int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
+    return (most_moves-numMoves+0.0)/(most_moves-least_moves)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+HEUR_MIN_SCORE+0.001;
 	}
 
 	private double goalProximity(MachineState state) throws GoalDefinitionException
 	{
 		StateMachine stateMachine = getStateMachine();
-		return 0;
+		return (stateMachine.getGoal(state, getRole())+0.0)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+HEUR_MIN_SCORE+0.001;
 	}
 
 	private double getHeuristicScore(MachineState state){
@@ -81,15 +61,23 @@ public class ThePlayerV2 extends StateMachineGamer
 		MachineState rootState = getCurrentState();
 		stateMachine.getInitialState();
 
+		most_moves = stateMachine.getLegalMoves(rootState, getRole()).size();
+		least_moves = most_moves;
 		MachineState currentState;
 		int numStatesExplored = 0;
 		int numRuns = 0;
 		int validMoves = 0;
+		int myMoves;
 		while(true) {
 			currentState = rootState;
 			numRuns++;
 			boolean isTerminal  = stateMachine.isTerminal(currentState);
 			while(!isTerminal) {
+			  myMoves = stateMachine.getLegalMoves(currentState, getRole()).size();
+			  if(myMoves > most_moves)
+			    most_moves = myMoves;
+			  else if (myMoves < least_moves)
+			    least_moves = myMoves;
 				validMoves = validMoves + stateMachine.getLegalJointMoves(currentState).size();
 				currentState = stateMachine.getRandomNextState(currentState);
 				isTerminal = stateMachine.isTerminal(currentState);
