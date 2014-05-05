@@ -31,42 +31,49 @@ import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 
 public class AlphaBetaPlayer extends StateMachineGamer
 {
-  @Override
-  public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
-  {
-    long currentTime = System.currentTimeMillis();
-    long finishBy = timeout - 1000;
-    StateMachine stateMachine = getStateMachine();
-    MachineState rootState = getCurrentState();
-    stateMachine.getInitialState();
 
-    MachineState currentState;
-    int numStatesExplored = 0;
-    int numRuns = 0;
-    int validMoves = 0;
-    while(true) {
-      currentState = rootState;
-      numRuns++;
-      boolean isTerminal  = stateMachine.isTerminal(currentState);
-      while(!isTerminal) {
-        validMoves = validMoves + stateMachine.getLegalJointMoves(currentState).size();
-        currentState = stateMachine.getRandomNextState(currentState);
-        isTerminal = stateMachine.isTerminal(currentState);
-        numStatesExplored++;
-      }
+	int numPlayers = 1;
+	int myIndex = 0;
 
-      if(System.currentTimeMillis() > finishBy)
-        break;
-    }
+	@Override
+	public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
+	{
 
-    System.out.println("MetaGaming done");
-    System.out.println("Number of runs made: "+numRuns);
-    System.out.println("Number of states explored: "+ numStatesExplored);
-    System.out.println("Estimated depth: "+ (numStatesExplored+0.0)/numRuns);
-    System.out.println("Estimated branching factor: "+ (validMoves+0.0)/numStatesExplored);
+		long currentTime = System.currentTimeMillis();
+		long finishBy = timeout - 1000;
+		StateMachine stateMachine = getStateMachine();
+		MachineState rootState = getCurrentState();
+		stateMachine.getInitialState();
 
+		numPlayers = stateMachine.getRoles().size();
+		myIndex = stateMachine.getRoles().indexOf(getRole());
 
-  }
+		MachineState currentState;
+		int numStatesExplored = 0;
+		int numRuns = 0;
+		int validMoves = 0;
+		while(true) {
+			currentState = rootState;
+			numRuns++;
+			boolean isTerminal  = stateMachine.isTerminal(currentState);
+			while(!isTerminal) {
+				validMoves = validMoves + stateMachine.getLegalJointMoves(currentState).size();
+				currentState = stateMachine.getRandomNextState(currentState);
+				isTerminal = stateMachine.isTerminal(currentState);
+				numStatesExplored++;
+			}
+
+			if(System.currentTimeMillis() > finishBy)
+				break;
+		}
+
+		System.out.println("MetaGaming done");
+		System.out.println("Number of runs made: "+numRuns);
+		System.out.println("Number of states explored: "+ numStatesExplored);
+		System.out.println("Estimated depth: "+ (numStatesExplored+0.0)/numRuns);
+		System.out.println("Estimated branching factor: "+ (validMoves+0.0)/numStatesExplored);
+
+	}
 
 
 	/** This will currently return "SampleGamer"
@@ -110,46 +117,47 @@ public class AlphaBetaPlayer extends StateMachineGamer
 
 		StateMachine theMachine = getStateMachine();
 		long start = System.currentTimeMillis();
-    long finishBy = timeout - 1000;
+		long finishBy = timeout - 1000;
 
 
 		MachineState rootState = getCurrentState();
 		List<Move> moves = theMachine.getLegalMoves(rootState, getRole());
 		Random random = new Random();
-    Move selection = moves.get(random.nextInt(moves.size()));
-    System.out.println(moves);
+	    Move selection = moves.get(random.nextInt(moves.size()));
+	    System.out.println(moves);
 
 		if (moves.size() == 1){
 		  long stop = System.currentTimeMillis();
-      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
-      return selection;
+	      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
+	      return selection;
 		}
 
 		int score = Integer.MIN_VALUE;
 		int alpha = Integer.MIN_VALUE;
 		int beta = Integer.MAX_VALUE;
 
+		System.out.println(score);
 
 		for(Move move: moves)
 		{
 		  if(System.currentTimeMillis() > finishBy){
-		    long stop = System.currentTimeMillis();
-	      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
-	      return selection;
+			  long stop = System.currentTimeMillis();
+		      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
+		      return selection;
 		  }
 
-		  MachineState nextState = theMachine.getNextState(rootState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));
-			int result = minScore(nextState, alpha, beta);
+		  	MachineState nextState = theMachine.getNextState(rootState, theMachine.getRandomJointMove(getCurrentState(), getRole(), move));
+			int result = minScore(nextState, alpha, beta, numPlayers-1);
 			if(result > score)
 			{
 				score = result;
 				selection = move;
 				if (score == 100){
-		      System.out.println("max score: 100");
-		      System.out.println(selection);
+			      System.out.println("max score: 100");
+			      System.out.println(selection);
 				  long stop = System.currentTimeMillis();
-		      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
-		      return selection;
+			      notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
+			      return selection;
 				}
 				alpha = Math.max(alpha, result);
 			}
@@ -157,14 +165,18 @@ public class AlphaBetaPlayer extends StateMachineGamer
   		System.out.println("max score:");
   		System.out.println(score);
   		System.out.println(selection);
-  	  long stop = System.currentTimeMillis();
+  		long stop = System.currentTimeMillis();
 
 	    notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
 	    return selection;
 	}
 
-	private int minScore(MachineState currentState, int alpha, int beta) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
+	private int minScore(MachineState currentState, int alpha, int beta, int remainingCalls) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
 	{
+		if(remainingCalls == 0)
+		{
+			return maxScore(currentState, alpha, beta);
+		}
 		StateMachine theMachine = getStateMachine();
 		if(theMachine.isTerminal(currentState))
 		{
@@ -185,7 +197,7 @@ public class AlphaBetaPlayer extends StateMachineGamer
 			for(Move move: moves)
 			{
 				MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(currentState, role, move));
-				int result = maxScore(nextState, alpha, beta);
+				int result = minScore(nextState, alpha, beta, remainingCalls-1);
 				if(result == 0){
 				  return 0;
 				}
@@ -208,7 +220,7 @@ public class AlphaBetaPlayer extends StateMachineGamer
 		for(Move move: moves)
 		{
 			MachineState nextState = theMachine.getNextState(currentState, theMachine.getRandomJointMove(currentState, getRole(), move));
-			int result = minScore(nextState, alpha, beta);
+			int result = minScore(nextState, alpha, beta, numPlayers-1);
 			if (result == 100){
 			  return 100;
 			}

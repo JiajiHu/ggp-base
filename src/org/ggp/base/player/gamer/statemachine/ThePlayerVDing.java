@@ -22,7 +22,7 @@ import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 // THE Player. version 2. Apr.28.2014.
 // depth limited heuristic alpha-beta player + interative deepening
 
-public class ThePlayerV3 extends StateMachineGamer
+public class ThePlayerVDing extends StateMachineGamer
 {
 
 	static double HEUR_MIN_SCORE = 20;
