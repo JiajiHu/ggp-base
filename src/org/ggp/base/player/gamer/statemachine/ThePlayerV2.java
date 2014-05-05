@@ -31,7 +31,7 @@ public class ThePlayerV2 extends StateMachineGamer
   int most_moves;
   int least_moves;
 //  double[] heur_weight = new double[3];
-  double[] heur_weight = {0.1,0.1,0.1};
+  double[] heur_weight = {0,0,1};
 
 	private double mobility(MachineState state) throws MoveDefinitionException
 	{
