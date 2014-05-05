@@ -1,6 +1,7 @@
 package org.ggp.base.player.gamer.statemachine;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
@@ -19,10 +20,10 @@ import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 
 
-// THE Player. version 2. Apr.28.2014.
-// depth limited heuristic alpha-beta player + interative deepening
+// THE Player. version 4. May.5.2014.
+// Switch to MCTS
 
-public class ThePlayerVDing extends StateMachineGamer
+public class ThePlayerV4 extends StateMachineGamer
 {
 
 	static double HEUR_MIN_SCORE = 20;
@@ -131,47 +132,121 @@ public class ThePlayerVDing extends StateMachineGamer
 		return (int)(score+0.5)+0.001;
 	}
 
-	@Override
-	public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
-	{
-		long finishBy = timeout - 1000;
-		StateMachine stateMachine = getStateMachine();
-		MachineState rootState = getCurrentState();
-		stateMachine.getInitialState();
+  private void setHeuristicWeights(double[] metaResults){
+    boolean chooseOne = true;
+    boolean weighted = false;
+    double bestScore = -Double.MAX_VALUE;
+    System.out.println("This is what I got from metagaming: " + Arrays.toString(metaResults));
+    int winner = 0;
+    if (chooseOne){
+      for (int i=0; i<metaResults.length; i++){
+        if (metaResults[i] > bestScore){
+          winner = i;
+          bestScore = metaResults[i];
+        }
+      }
+      System.out.println("Choosing heuristic: " + winner);
+      for (int i=0; i<metaResults.length; i++){
+        if (i==winner)
+          heur_weight[i] = 1;
+        else
+          heur_weight[i] = 0;
+      }
+    }
+    if (weighted){
+// TODO:add stuff
+    }
+  }
 
-		most_moves = stateMachine.getLegalMoves(rootState, getRole()).size();
-		least_moves = most_moves;
-		MachineState currentState;
-		int numStatesExplored = 0;
-		int numRuns = 0;
-		int validMoves = 0;
-		int myMoves;
-		while(true) {
-			currentState = rootState;
-			numRuns++;
-			boolean isTerminal  = stateMachine.isTerminal(currentState);
-			while(!isTerminal) {
-				myMoves = stateMachine.getLegalMoves(currentState, getRole()).size();
-				if(myMoves > most_moves)
-					most_moves = myMoves;
-				else if (myMoves < least_moves)
-					least_moves = myMoves;
-				validMoves = validMoves + stateMachine.getLegalJointMoves(currentState).size();
-				currentState = stateMachine.getRandomNextState(currentState);
-				isTerminal = stateMachine.isTerminal(currentState);
-				numStatesExplored++;
-			}
+  private double getMetaHeuristic(MachineState state, int heur)
+      throws MoveDefinitionException, GoalDefinitionException {
+    double score = 0;
+    if (heur == 0) {
+      score = mobility(state);
+    }
+    if (heur == 1) {
+      score = focus(state);
+    }
+    if (heur == 2) {
+      score = goalProximity(state);
+    }
+    return (int) (score + 0.5) + 0.001;
+  }
 
-			if(System.currentTimeMillis() > finishBy)
-				break;
-		}
+  @Override
+  public void stateMachineMetaGame(long timeout)
+      throws TransitionDefinitionException, MoveDefinitionException,
+      GoalDefinitionException {
+    long finishBy = timeout - 1000;
+    StateMachine stateMachine = getStateMachine();
+    MachineState rootState = getCurrentState();
 
-		System.out.println("MetaGaming done");
-		System.out.println("Number of runs made: "+numRuns);
-		System.out.println("Number of states explored: "+ numStatesExplored);
-		System.out.println("Estimated depth: "+ (numStatesExplored+0.0)/numRuns);
-		System.out.println("Estimated branching factor: "+ (validMoves+0.0)/numStatesExplored);
-	}
+    stateMachine.getInitialState();
+
+    most_moves = stateMachine.getLegalMoves(rootState, getRole()).size();
+    least_moves = most_moves;
+    MachineState currentState;
+    int numStatesExplored = 0;
+    int numRuns = 0;
+    int validMoves = 0;
+    List<Move> myMoves;
+    Move bestMove;
+    double bestScore;
+    double thisScore;
+    int myMoveLen;
+    int heurNum = 0;
+    int heurTotal = heur_weight.length;
+    double[] heurScores = new double[heurTotal];
+    int[] heurCount = new int[heurTotal];
+
+    while (true) {
+      currentState = rootState;
+      numRuns++;
+      boolean isTerminal = stateMachine.isTerminal(currentState);
+      while (!isTerminal) {
+        myMoves = stateMachine.getLegalMoves(currentState, getRole());
+        myMoveLen = myMoves.size();
+        if (myMoveLen > most_moves)
+          most_moves = myMoveLen;
+        else if (myMoveLen < least_moves)
+          least_moves = myMoveLen;
+        validMoves = validMoves
+            + stateMachine.getLegalJointMoves(currentState).size();
+        bestScore = -Double.MAX_VALUE;
+        bestMove = myMoves.get(0);
+        for (Move thisMove : myMoves){
+          thisScore = getMetaHeuristic(stateMachine.getRandomNextState(currentState, getRole(), thisMove),heurNum);
+          if (thisScore > bestScore){
+            bestScore = thisScore;
+            bestMove = thisMove;
+          }
+        }
+        currentState = stateMachine.getRandomNextState(currentState, getRole(), bestMove);
+        isTerminal = stateMachine.isTerminal(currentState);
+        if (isTerminal){
+          heurScores[heurNum] = heurScores[heurNum] + stateMachine.getGoal(currentState, getRole());
+          heurCount[heurNum] = heurCount[heurNum] + 1;
+        }
+        numStatesExplored++;
+      }
+      if (System.currentTimeMillis() > finishBy){
+        for (int i=0; i<heurTotal; i++){
+          heurScores[i] = heurScores[i]/heurCount[i];
+        }
+        setHeuristicWeights(heurScores);
+        break;
+      }
+      heurNum = (heurNum + 1) % heurTotal;
+    }
+
+    System.out.println("MetaGaming done");
+    System.out.println("Number of runs made: " + numRuns);
+    System.out.println("Number of states explored: " + numStatesExplored);
+    System.out.println("Estimated depth: " + (numStatesExplored + 0.0)
+        / numRuns);
+    System.out.println("Estimated branching factor: " + (validMoves + 0.0)
+        / numStatesExplored);
+  }
 
 	public void stateMachineExplore(long timeout, Move move) throws MoveDefinitionException, TransitionDefinitionException
 	{

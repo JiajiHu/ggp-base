@@ -24,14 +24,14 @@ import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 public class ThePlayerV2 extends StateMachineGamer
 {
 
-	static double HEUR_MIN_SCORE = 20;
-	static double HEUR_MAX_SCORE = 80;
+  static double HEUR_MIN_SCORE = 20;
+  static double HEUR_MAX_SCORE = 80;
 
-	int max_depth = 1;
-	int most_moves;
-	int least_moves;
-	//  double[] heur_weight = new double[3];
-	double[] heur_weight = {0.1,0.1,0.1};
+  int max_depth = 1;
+  int most_moves;
+  int least_moves;
+//  double[] heur_weight = new double[3];
+  double[] heur_weight = {0,0,1};
 
 	private double mobility(MachineState state) throws MoveDefinitionException
 	{
@@ -41,8 +41,8 @@ public class ThePlayerV2 extends StateMachineGamer
 
 	private double focus(MachineState state) throws MoveDefinitionException
 	{
-		int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
-		return (int)((most_moves-numMoves+0.0)/(most_moves-least_moves)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+0.5)+HEUR_MIN_SCORE+0.001;
+    int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
+    return (int)((most_moves-numMoves+0.0)/(most_moves-least_moves)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+0.5)+HEUR_MIN_SCORE+0.001;
 	}
 
 	private double goalProximity(MachineState state) throws GoalDefinitionException
@@ -52,24 +52,23 @@ public class ThePlayerV2 extends StateMachineGamer
 	}
 
 	private double getHeuristicScore(MachineState state) throws MoveDefinitionException, GoalDefinitionException{
+	  double score = 0;
+	  double normalize = 0;
+    if (heur_weight[0] > 0){
+	    score = score + heur_weight[0]*mobility(state);
+	    normalize = normalize+heur_weight[0];
+    }
+	  if (heur_weight[1] > 0){
+	    score = score + heur_weight[1]*focus(state);
+	    normalize = normalize+heur_weight[1];
+	  }
+	  if (heur_weight[2] > 0){
+	    score = score + heur_weight[2]*goalProximity(state);
+	    normalize = normalize+heur_weight[2];
+	  }
 
-		double score = 0;
-		double normalize = 0;
-		if (heur_weight[0] > 0){
-			score = score + heur_weight[0]*mobility(state);
-			normalize = normalize+heur_weight[0];
-		}
-		if (heur_weight[1] > 0){
-			score = score + heur_weight[1]*focus(state);
-			normalize = normalize+heur_weight[1];
-		}
-		if (heur_weight[2] > 0){
-			score = score + heur_weight[2]*goalProximity(state);
-			normalize = normalize+heur_weight[2];
-		}
-
-		score = score/normalize;
-		return (int)(score+0.5)+0.001;
+	  score = score/normalize;
+	  return (int)(score+0.5)+0.001;
 	}
 
 	@Override
@@ -92,11 +91,11 @@ public class ThePlayerV2 extends StateMachineGamer
 			numRuns++;
 			boolean isTerminal  = stateMachine.isTerminal(currentState);
 			while(!isTerminal) {
-				myMoves = stateMachine.getLegalMoves(currentState, getRole()).size();
-				if(myMoves > most_moves)
-					most_moves = myMoves;
-				else if (myMoves < least_moves)
-					least_moves = myMoves;
+			  myMoves = stateMachine.getLegalMoves(currentState, getRole()).size();
+			  if(myMoves > most_moves)
+			    most_moves = myMoves;
+			  else if (myMoves < least_moves)
+			    least_moves = myMoves;
 				validMoves = validMoves + stateMachine.getLegalJointMoves(currentState).size();
 				currentState = stateMachine.getRandomNextState(currentState);
 				isTerminal = stateMachine.isTerminal(currentState);
@@ -115,33 +114,33 @@ public class ThePlayerV2 extends StateMachineGamer
 	}
 
 	public void stateMachineExplore(long timeout, Move move) throws MoveDefinitionException, TransitionDefinitionException
-	{
-		long finishBy = timeout - 1000;
-		StateMachine stateMachine = getStateMachine();
-		MachineState rootState = getCurrentState();
+  {
+    long finishBy = timeout - 1000;
+    StateMachine stateMachine = getStateMachine();
+    MachineState rootState = getCurrentState();
 
-		MachineState currentState;
-		while(true) {
-			if(System.currentTimeMillis() > finishBy)
-				break;
-			currentState = stateMachine.getRandomNextState(rootState, getRole(), move);
-			boolean isTerminal  = stateMachine.isTerminal(currentState);
-			while(!isTerminal) {
-				currentState = stateMachine.getRandomNextState(currentState);
-				isTerminal = stateMachine.isTerminal(currentState);
-			}
-		}
-	}
+    MachineState currentState;
+    while(true) {
+      if(System.currentTimeMillis() > finishBy)
+        break;
+      currentState = stateMachine.getRandomNextState(rootState, getRole(), move);
+      boolean isTerminal  = stateMachine.isTerminal(currentState);
+      while(!isTerminal) {
+        currentState = stateMachine.getRandomNextState(currentState);
+        isTerminal = stateMachine.isTerminal(currentState);
+      }
+    }
+  }
 
 	@Override
 	public Move stateMachineSelectMove(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
 	{
 		StateMachine theMachine = getStateMachine();
 		long start = System.currentTimeMillis();
-		long finishBy = timeout - 1000;
-		max_depth = 1;
+    long finishBy = timeout - 1000;
+    max_depth = 1;
 
-		MachineState currentState = getCurrentState();
+    MachineState currentState = getCurrentState();
 		List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
 		Random random = new Random();
 		Move selection = moves.get(random.nextInt(moves.size()));
@@ -150,42 +149,42 @@ public class ThePlayerV2 extends StateMachineGamer
 		double score = 0;
 
 		if (moves.size() == 1){
-			return exitSequence(moves, selection, start, timeout);
-		}
+	    return exitSequence(moves, selection, start, timeout);
+	  }
 
 		while (max_depth < Integer.MAX_VALUE){
-			double temp_score = Integer.MIN_VALUE;
-			double alpha = Integer.MIN_VALUE;
-			double beta = Integer.MAX_VALUE;
-			temp_selection = moves.get(random.nextInt(moves.size()));
-			for(Move move: moves)
-			{
-				if(System.currentTimeMillis() > finishBy){
-					System.out.println("OMG I'm gonna time out!!!!!!!!!");
-					if(((int)temp_score == temp_score)&&(temp_score >= score)){
-						selection = temp_selection;
-						score = temp_score;
-					}
-					System.out.println("move: "+selection+" score: "+score);
-					return exitSequence(moves, selection, start, timeout);
-				}
+	    double temp_score = Integer.MIN_VALUE;
+	    double alpha = Integer.MIN_VALUE;
+	    double beta = Integer.MAX_VALUE;
+      temp_selection = moves.get(random.nextInt(moves.size()));
+	    for(Move move: moves)
+	    {
+	      if(System.currentTimeMillis() > finishBy){
+	        System.out.println("OMG I'm gonna time out!!!!!!!!!");
+	        if(((int)temp_score == temp_score)&&(temp_score >= score)){
+	          selection = temp_selection;
+	          score = temp_score;
+	        }
+	        System.out.println("move: "+selection+" score: "+score);
+	        return exitSequence(moves, selection, start, timeout);
+	      }
 
-				double result = minScore(currentState, move, alpha, beta, max_depth, finishBy);
-				if(result > temp_score)
-				{
-					temp_score = result;
-					temp_selection = move;
-					if (temp_score == 100){
-						System.out.println("max score: 100");
-						System.out.println(temp_selection);
-						return exitSequence(moves, temp_selection, start, timeout);
-					}
-				}
-			}
-			selection = temp_selection;
-			score = temp_score;
-			max_depth++;
-			System.out.println("Current searching depth set to "+max_depth);
+	      double result = minScore(currentState, move, alpha, beta, max_depth, finishBy);
+	      if(result > temp_score)
+	      {
+	        temp_score = result;
+	        temp_selection = move;
+	        if (temp_score == 100){
+	          System.out.println("max score: 100");
+	          System.out.println(temp_selection);
+	          return exitSequence(moves, temp_selection, start, timeout);
+	        }
+	      }
+	    }
+	    selection = temp_selection;
+	    score = temp_score;
+	    max_depth++;
+      System.out.println("Current searching depth set to "+max_depth);
 		}
 		System.out.println("selection: "+selection);
 
@@ -193,95 +192,95 @@ public class ThePlayerV2 extends StateMachineGamer
 	}
 
 	private Move exitSequence(List<Move> moves, Move selection, long start, long timeout) throws TransitionDefinitionException, MoveDefinitionException{
-		stateMachineExplore(timeout, selection);
-		long stop = System.currentTimeMillis();
-		System.out.println("time left: "+(stop-start));
-		notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
-		return selection;
+	  stateMachineExplore(timeout, selection);
+	  long stop = System.currentTimeMillis();
+	  System.out.println("time left: "+(stop-start));
+    notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
+    return selection;
 	}
 
 	private double minScore(MachineState currentState, Move move, double alpha, double beta, int depth, long finishBy) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
 	{
-		StateMachine theMachine = getStateMachine();
-		List<List<Move>> list_moves = theMachine.getLegalJointMoves(currentState, getRole(), move);
+	  StateMachine theMachine = getStateMachine();
+    List<List<Move>> list_moves = theMachine.getLegalJointMoves(currentState, getRole(), move);
 
-		for (List<Move> moves: list_moves){
-			MachineState nextState = theMachine.getNextState(currentState, moves);
-			if(theMachine.isTerminal(nextState)) {
-				double terminal = theMachine.getGoal(nextState, getRole());
-				if (terminal == 0){
-					terminal = terminal + 0.001*(max_depth-depth);
-					beta = Math.min(beta, terminal);
-					return terminal;
-				}
-				beta = Math.min(beta, terminal);
-				if (beta <= alpha)
-					return alpha;
-			}
-			else if (depth == 0 || (max_depth-depth < 2 && System.currentTimeMillis() > finishBy)) {
-				double h_score = getHeuristicScore(nextState);
-				beta = Math.min(beta, h_score);
-				if(h_score == 0)
-					return h_score;
-				if (beta <= alpha)
-					return alpha;
-			}
-			else {
-				double highest = maxScore(nextState, alpha, beta, depth, finishBy);
-				beta = Math.min(beta, highest);
-				//        if(highest < 1)
-					//          return highest;
-				if (beta <= alpha)
-					return alpha;
-			}
-		}
-		return beta;
-	}
+    for (List<Move> moves: list_moves){
+      MachineState nextState = theMachine.getNextState(currentState, moves);
+      if(theMachine.isTerminal(nextState)) {
+        double terminal = theMachine.getGoal(nextState, getRole());
+        if (terminal == 0){
+          terminal = terminal + 0.001*(max_depth-depth);
+          beta = Math.min(beta, terminal);
+          return terminal;
+        }
+        beta = Math.min(beta, terminal);
+        if (beta <= alpha)
+          return alpha;
+      }
+      else if (depth == 0 || (max_depth-depth < 2 && System.currentTimeMillis() > finishBy)) {
+        double h_score = getHeuristicScore(nextState);
+        beta = Math.min(beta, h_score);
+        if(h_score == 0)
+          return h_score;
+        if (beta <= alpha)
+          return alpha;
+      }
+      else {
+        double highest = maxScore(nextState, alpha, beta, depth, finishBy);
+        beta = Math.min(beta, highest);
+//        if(highest < 1)
+//          return highest;
+        if (beta <= alpha)
+          return alpha;
+      }
+    }
+    return beta;
+  }
 
 	private double maxScore(MachineState nextState, double alpha, double beta, int depth, long finishBy) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException{
-		StateMachine theMachine = getStateMachine();
-		List<Move> nextMoves = theMachine.getLegalMoves(nextState, getRole());
+	  StateMachine theMachine = getStateMachine();
+    List<Move> nextMoves = theMachine.getLegalMoves(nextState, getRole());
 
-		for (Move nextMove: nextMoves){
-			double result = minScore(nextState, nextMove, alpha, beta, depth-1, finishBy);
-			alpha = Math.max(alpha, result);
-			if(result > 99)
-				return result;
-			if (alpha >= beta)
-				return beta;
-		}
-		return alpha;
+    for (Move nextMove: nextMoves){
+      double result = minScore(nextState, nextMove, alpha, beta, depth-1, finishBy);
+      alpha = Math.max(alpha, result);
+      if(result > 99)
+        return result;
+      if (alpha >= beta)
+        return beta;
+    }
+    return alpha;
 	}
 	@Override
 	public String getName() {
-		return getClass().getSimpleName();
+	  return getClass().getSimpleName();
 	}
 
 	// This is the default State Machine
 	@Override
 	public StateMachine getInitialStateMachine() {
-		return new CachedStateMachine(new ProverStateMachine());
+	  return new CachedStateMachine(new ProverStateMachine());
 	}
 
 	// This is the default Sample Panel
 	@Override
 	public DetailPanel getDetailPanel() {
-		return new SimpleDetailPanel();
+	  return new SimpleDetailPanel();
 	}
 
 	@Override
 	public void stateMachineStop() {
-		// Sample gamers do no special cleanup when the match ends normally.
+	  // Sample gamers do no special cleanup when the match ends normally.
 	}
 
 	@Override
 	public void stateMachineAbort() {
-		// Sample gamers do no special cleanup when the match ends abruptly.
+	  // Sample gamers do no special cleanup when the match ends abruptly.
 	}
 
 	@Override
 	public void preview(Game g, long timeout) throws GamePreviewException {
-		// Sample gamers do no game previewing.
+	  // Sample gamers do no game previewing.
 	}
 }
 
