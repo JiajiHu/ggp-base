@@ -18,44 +18,69 @@ import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 
-// THE Player. version 3. May.5 2014.
-// depth limited heuristic alpha-beta player + interative deepening
+// THE Player. version 3. May.5.2014.
+// Add Monte Carlo heuristics, use real metagaming
 
 public class ThePlayerV3 extends StateMachineGamer {
 
   static double HEUR_MIN_SCORE = 20;
   static double HEUR_MAX_SCORE = 80;
 
+  static double MC_NUM_ATTEMPTS = 10;
+
   int max_depth = 1;
   int most_moves;
   int least_moves;
   // double[] heur_weight = new double[3];
-  double[] heur_weight = { 0.1, 0.1, 0.1 };
+  double[] heur_weight = { 0.0, 0.0, 0.0, 1.0 };
+
+
+  private int[] depth = new int[1];
+
+  public double monteCarlo(MachineState state)
+      throws TransitionDefinitionException, MoveDefinitionException,
+      GoalDefinitionException {
+    StateMachine theMachine = getStateMachine();
+
+    int moveTotalPoints = 0;
+    int numAttempts = 0;
+
+    for (; numAttempts < MC_NUM_ATTEMPTS; numAttempts++) {
+      MachineState finalState = theMachine.performDepthCharge(state, depth);
+      int theScore = theMachine.getGoal(finalState, getRole());
+      moveTotalPoints += theScore;
+    }
+    // System.out.println(1.0 * moveTotalPoints / numAttempts);
+    return normalize(1.0 * moveTotalPoints / numAttempts);
+  }
+
+  private double normalize(double input) {
+    return (int) (input * (HEUR_MAX_SCORE - HEUR_MIN_SCORE) / 100 + 0.5)
+        + HEUR_MIN_SCORE + 0.001;
+  }
 
   private double mobility(MachineState state) throws MoveDefinitionException {
     int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
-    return (int) ((numMoves - least_moves + 0.0) / (most_moves - least_moves)
-        * (HEUR_MAX_SCORE - HEUR_MIN_SCORE) / 100 + 0.5)
-        + HEUR_MIN_SCORE + 0.001;
+    return normalize((numMoves - least_moves + 0.0)
+        / (most_moves - least_moves));
   }
 
   private double focus(MachineState state) throws MoveDefinitionException {
     int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
-    return (int) ((most_moves - numMoves + 0.0) / (most_moves - least_moves)
-        * (HEUR_MAX_SCORE - HEUR_MIN_SCORE) / 100 + 0.5)
-        + HEUR_MIN_SCORE + 0.001;
+    return normalize((most_moves - numMoves + 0.0) / (most_moves - least_moves));
   }
 
   private double goalProximity(MachineState state)
       throws GoalDefinitionException {
     StateMachine stateMachine = getStateMachine();
-    return (int) ((stateMachine.getGoal(state, getRole()) + 0.0)
-        * (HEUR_MAX_SCORE - HEUR_MIN_SCORE) / 100 + 0.5)
-        + HEUR_MIN_SCORE + 0.001;
+    return normalize((stateMachine.getGoal(state, getRole()) + 0.0));
   }
 
   private double getHeuristicScore(MachineState state)
-      throws MoveDefinitionException, GoalDefinitionException {
+      throws MoveDefinitionException, GoalDefinitionException,
+      TransitionDefinitionException {
+
+    // return 0.0;
     double score = 0;
     double normalize = 0;
     if (heur_weight[0] > 0) {
@@ -70,34 +95,39 @@ public class ThePlayerV3 extends StateMachineGamer {
       score = score + heur_weight[2] * goalProximity(state);
       normalize = normalize + heur_weight[2];
     }
+    if (heur_weight[3] > 0) {
+      score = score + heur_weight[3] * monteCarlo(state);
+      normalize = normalize + heur_weight[3];
+    }
 
     score = score / normalize;
     return (int) (score + 0.5) + 0.001;
   }
 
-  private void setHeuristicWeights(double[] metaResults){
+  private void setHeuristicWeights(double[] metaResults) {
     boolean chooseOne = true;
     boolean weighted = false;
     double bestScore = -Double.MAX_VALUE;
-    System.out.println("This is what I got from metagaming: " + Arrays.toString(metaResults));
+    System.out.println("This is what I got from metagaming: "
+        + Arrays.toString(metaResults));
     int winner = 0;
-    if (chooseOne){
-      for (int i=0; i<metaResults.length; i++){
-        if (metaResults[i] > bestScore){
+    if (chooseOne) {
+      for (int i = 0; i < metaResults.length; i++) {
+        if (metaResults[i] > bestScore) {
           winner = i;
           bestScore = metaResults[i];
         }
       }
       System.out.println("Choosing heuristic: " + winner);
-      for (int i=0; i<metaResults.length; i++){
-        if (i==winner)
+      for (int i = 0; i < metaResults.length; i++) {
+        if (i == winner)
           heur_weight[i] = 1;
         else
           heur_weight[i] = 0;
       }
     }
-    if (weighted){
-// TODO:add stuff
+    if (weighted) {
+      // TODO:add stuff
     }
   }
 
@@ -125,7 +155,6 @@ public class ThePlayerV3 extends StateMachineGamer {
     MachineState rootState = getCurrentState();
 
     stateMachine.getInitialState();
-
     most_moves = stateMachine.getLegalMoves(rootState, getRole()).size();
     least_moves = most_moves;
     MachineState currentState;
@@ -157,24 +186,27 @@ public class ThePlayerV3 extends StateMachineGamer {
             + stateMachine.getLegalJointMoves(currentState).size();
         bestScore = -Double.MAX_VALUE;
         bestMove = myMoves.get(0);
-        for (Move thisMove : myMoves){
-          thisScore = getMetaHeuristic(stateMachine.getRandomNextState(currentState, getRole(), thisMove),heurNum);
-          if (thisScore > bestScore){
+        for (Move thisMove : myMoves) {
+          thisScore = getMetaHeuristic(stateMachine.getRandomNextState(
+              currentState, getRole(), thisMove), heurNum);
+          if (thisScore > bestScore) {
             bestScore = thisScore;
             bestMove = thisMove;
           }
         }
-        currentState = stateMachine.getRandomNextState(currentState, getRole(), bestMove);
+        currentState = stateMachine.getRandomNextState(currentState, getRole(),
+            bestMove);
         isTerminal = stateMachine.isTerminal(currentState);
-        if (isTerminal){
-          heurScores[heurNum] = heurScores[heurNum] + stateMachine.getGoal(currentState, getRole());
+        if (isTerminal) {
+          heurScores[heurNum] = heurScores[heurNum]
+              + stateMachine.getGoal(currentState, getRole());
           heurCount[heurNum] = heurCount[heurNum] + 1;
         }
         numStatesExplored++;
       }
-      if (System.currentTimeMillis() > finishBy){
-        for (int i=0; i<heurTotal; i++){
-          heurScores[i] = heurScores[i]/heurCount[i];
+      if (System.currentTimeMillis() > finishBy) {
+        for (int i = 0; i < heurTotal; i++) {
+          heurScores[i] = heurScores[i] / heurCount[i];
         }
         setHeuristicWeights(heurScores);
         break;
@@ -310,6 +342,8 @@ public class ThePlayerV3 extends StateMachineGamer {
       } else {
         double highest = maxScore(nextState, alpha, beta, depth, finishBy);
         beta = Math.min(beta, highest);
+        // if(highest < 1)
+        // return highest;
         if (beta <= alpha)
           return alpha;
       }

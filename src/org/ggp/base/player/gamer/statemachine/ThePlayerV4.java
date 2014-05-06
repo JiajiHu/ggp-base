@@ -2,6 +2,7 @@ package org.ggp.base.player.gamer.statemachine;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 
@@ -12,6 +13,7 @@ import org.ggp.base.player.gamer.exception.GamePreviewException;
 import org.ggp.base.util.game.Game;
 import org.ggp.base.util.statemachine.MachineState;
 import org.ggp.base.util.statemachine.Move;
+import org.ggp.base.util.statemachine.Role;
 import org.ggp.base.util.statemachine.StateMachine;
 import org.ggp.base.util.statemachine.cache.CachedStateMachine;
 import org.ggp.base.util.statemachine.exceptions.GoalDefinitionException;
@@ -19,147 +21,274 @@ import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 
-
 // THE Player. version 4. May.5.2014.
 // Switch to MCTS
 
-public class ThePlayerV4 extends StateMachineGamer
-{
+public class ThePlayerV4 extends StateMachineGamer {
 
-	static double HEUR_MIN_SCORE = 20;
-	static double HEUR_MAX_SCORE = 80;
+  static double HEUR_MIN_SCORE = 20;
+  static double HEUR_MAX_SCORE = 80;
+  static double MC_NUM_ATTEMPTS = 10;
 
-	static double MC_NUM_ATTEMPTS = 10;
+  // TODO: better way to store this relation -- how?
+  HashMap<MachineState, Node> stateToNode = new HashMap<MachineState, Node>();
+  HashMap<Node, MachineState> nodeToState = new HashMap<Node, MachineState>();
 
-	int max_depth = 1;
-	int most_moves;
-	int least_moves;
-	//  double[] heur_weight = new double[3];
-	double[] heur_weight = {0.0, 0.0, 0.0, 1.0};
+  int max_depth = 1;
+  int most_moves;
+  int least_moves;
+  // double[] heur_weight = new double[3];
+  double[] heur_weight = { 0.0, 0.0, 0.0, 1.0 };
 
-	public class Node{
-		int visits = 0;
-		int utility= 0;
-		Node parent;
-		ArrayList<Node> children = new ArrayList<Node>();
-	};
+  public class Node {
+    // TODO: expand to multiplayer: need a boolean for is_me,
+    // need a count for opponent score
+    int visits = 0;
+    double utility = 0;
+    boolean stopBP = false;
+    Node parent = null;
+    ArrayList<Node> children = new ArrayList<Node>();
 
-	double selectfn(Node node){
-		return node.utility + Math.sqrt(Math.log(node.visits) / node.parent.visits);
-	}
+    Node(MachineState state) {
+      stateToNode.put(state, this);
+      nodeToState.put(this, state);
+    }
 
-	Node select(Node node){
-		if(node.visits == 0)
-			return node;
-		for(int i = 0; i < node.children.size(); i++){
-			if(node.children.get(i).visits == 0)
-				return node.children.get(i);
-		}
-		double score = 0;
-		Node result = node;
-		for(int i = 0; i < node.children.size(); i++){
-			double newScore = selectfn(node.children.get(i));
-			if(newScore > score){
-				score = newScore;
-				result = node.children.get(i);
-			}
-		}
+    Node(Node p, MachineState state) {
+      this.parent = p;
+      p.children.add(this);
+      stateToNode.put(state, this);
+      nodeToState.put(this, state);
+    }
+  };
 
-		return select(result);
-	}
+  double selectfn(Node node) {
+    return node.utility + Math.sqrt(Math.log(node.visits) / node.parent.visits);
+  }
 
-	private int[] depth = new int[1];
-	public double monteCarlo(MachineState state) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
-	{
-	    StateMachine theMachine = getStateMachine();
+  Node select(Node node) {
+    if (node.visits == 0)
+      return node;
+    for (int i = 0; i < node.children.size(); i++) {
+      if (node.children.get(i).visits == 0)
+        return node.children.get(i);
+    }
+    double score = 0;
+    Node result = node;
+    for (int i = 0; i < node.children.size(); i++) {
+      double newScore = selectfn(node.children.get(i));
+      if (newScore > score) {
+        score = newScore;
+        result = node.children.get(i);
+      }
+    }
+    //prevent an infinite loop
+    if (result == node)
+      return node;
+    return select(result);
+  }
 
-		int moveTotalPoints = 0;
-		int numAttempts = 0;
+  void expand(Node node) throws MoveDefinitionException,
+      TransitionDefinitionException {
+    StateMachine theMachine = getStateMachine();
+    MachineState currentState = nodeToState.get(node);
+    // Role will change for multiplayer games
+    Role currentRole = getRole();
+    List<Move> myMoves = theMachine.getLegalMoves(currentState, currentRole);
+    for (Move move : myMoves) {
+      // TODO: getRandomNextState works only if we assume no simultaneous
+      // actions -- works for current games, fix in the future
+      MachineState nextState = theMachine.getRandomNextState(currentState,
+          currentRole, move);
+      Node newNode = new Node(node, nextState);
+    }
+  }
 
-		for (; numAttempts < MC_NUM_ATTEMPTS; numAttempts++) {
-			MachineState finalState = theMachine.performDepthCharge(state, depth);
-            int theScore = theMachine.getGoal(finalState, getRole());
-		    moveTotalPoints += theScore;
-		}
+  void backPropogate(Node node, double score) {
+    node.visits += 1;
+    node.utility += score;
+    if (!node.stopBP && node.parent != null)
+      backPropogate(node.parent, score);
+  }
 
-		System.out.println(1.0 * moveTotalPoints / numAttempts);
+  private int[] depth = new int[1];
 
-		return 1.0 * moveTotalPoints / numAttempts;
-	}
+  public double monteCarlo(MachineState state)
+      throws TransitionDefinitionException, MoveDefinitionException,
+      GoalDefinitionException {
+    StateMachine theMachine = getStateMachine();
 
+    int moveTotalPoints = 0;
+    int numAttempts = 0;
 
-	private double mobility(MachineState state) throws MoveDefinitionException
-	{
-		int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
-		return (int)((numMoves-least_moves+0.0)/(most_moves-least_moves)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+0.5)+HEUR_MIN_SCORE+0.001;
-	}
+    for (; numAttempts < MC_NUM_ATTEMPTS; numAttempts++) {
+      MachineState finalState = theMachine.performDepthCharge(state, depth);
+      int theScore = theMachine.getGoal(finalState, getRole());
+      moveTotalPoints += theScore;
+    }
+    return 1.0 * moveTotalPoints / numAttempts;
+  }
 
-	private double focus(MachineState state) throws MoveDefinitionException
-	{
-		int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
-		return (int)((most_moves-numMoves+0.0)/(most_moves-least_moves)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+0.5)+HEUR_MIN_SCORE+0.001;
-	}
+  public void performMCTSCycle(Node node) throws MoveDefinitionException,
+      TransitionDefinitionException, GoalDefinitionException {
+    Node selected_node = select(node);
+    MachineState selected_state = nodeToState.get(selected_node);
+    if (!getStateMachine().isTerminal(selected_state))
+      expand(selected_node);
+    // NOTE: monteCarlo performs MC_NUM_ATTEMPTS depth-charges, so all visit
+    // counts should in fact all be multiplied by that number.
+    double score = monteCarlo(selected_state);
+    backPropogate(selected_node, score);
+  }
 
-	private double goalProximity(MachineState state) throws GoalDefinitionException
-	{
-		StateMachine stateMachine = getStateMachine();
-		return (int)((stateMachine.getGoal(state, getRole())+0.0)*(HEUR_MAX_SCORE-HEUR_MIN_SCORE)/100+0.5)+HEUR_MIN_SCORE+0.001;
-	}
+  public Move MCTSSelectMove(Node node) throws MoveDefinitionException,
+      TransitionDefinitionException {
+    Random random = new Random();
+    StateMachine theMachine = getStateMachine();
+    MachineState currentState = nodeToState.get(node);
+    List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
+    Move selection = moves.get(random.nextInt(moves.size()));
+    double curBest = -Double.MAX_VALUE;
+    for (Move move : moves) {
+      // TODO: SAME AS ABOVE: getRandomNextState works only if we assume no
+      // simultaneous actions -- works for current games, fix in the future
+      MachineState nextState = theMachine.getRandomNextState(currentState,
+          getRole(), move);
+      Node nextNode = stateToNode.get(nextState);
+      System.out.println("move: "+move);
+      System.out.println("average score: "+nextNode.utility / nextNode.visits);
+      if (nextNode.utility / nextNode.visits > curBest) {
+        curBest = nextNode.utility / nextNode.visits;
+        selection = move;
+      }
+    }
+    System.out.println("chose: "+selection);
+    return selection;
+  }
 
-	private double getHeuristicScore(MachineState state) throws MoveDefinitionException, GoalDefinitionException, TransitionDefinitionException{
+  @Override
+  public Move stateMachineSelectMove(long timeout)
+      throws TransitionDefinitionException, MoveDefinitionException,
+      GoalDefinitionException {
+    StateMachine theMachine = getStateMachine();
+    MachineState currentState = getCurrentState();
+    long start = System.currentTimeMillis();
+    long finishBy = timeout - 1000;
+    int cycleCounter = 0;
+    List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
+    if (moves.size() == 1)
+      return exitSequence(moves, moves.get(0), start, timeout);
 
-		//return 0.0;
-		double score = 0;
-		double normalize = 0;
-		if (heur_weight[0] > 0){
-			score = score + heur_weight[0]*mobility(state);
-			normalize = normalize+heur_weight[0];
-		}
-		if (heur_weight[1] > 0){
-			score = score + heur_weight[1]*focus(state);
-			normalize = normalize+heur_weight[1];
-		}
-		if (heur_weight[2] > 0){
-			score = score + heur_weight[2]*goalProximity(state);
-			normalize = normalize+heur_weight[2];
-		}
-		if (heur_weight[3] > 0){
-			score = score + heur_weight[3]*monteCarlo(state);
-			normalize = normalize+heur_weight[3];
-		}
+    Node rootNode;
+    if (stateToNode.containsKey(currentState))
+      rootNode = stateToNode.get(currentState);
+    else
+      rootNode = new Node(currentState);
+    rootNode.stopBP = true;
 
-		score = score/normalize;
-		return (int)(score+0.5)+0.001;
-	}
+    while (true) {
+      if (System.currentTimeMillis() > finishBy) {
+        System.out.println("Time up! Cycles competed: "+cycleCounter);
+        break;
+      }
+      performMCTSCycle(rootNode);
+      cycleCounter++;
+    }
 
-  private void setHeuristicWeights(double[] metaResults){
+    Move selection = MCTSSelectMove(rootNode);
+    return exitSequence(moves, selection, start, timeout);
+  }
+
+  private Move exitSequence(List<Move> moves, Move selection, long start,
+      long timeout) throws TransitionDefinitionException,
+      MoveDefinitionException {
+    stateMachineExplore(timeout, selection);
+    long stop = System.currentTimeMillis();
+    System.out.println("time left: " + (stop - start));
+    notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
+    return selection;
+  }
+
+  private double mobility(MachineState state) throws MoveDefinitionException {
+    int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
+    return normalize((numMoves - least_moves + 0.0)
+        / (most_moves - least_moves));
+  }
+
+  private double focus(MachineState state) throws MoveDefinitionException {
+    int numMoves = getStateMachine().getLegalMoves(state, getRole()).size();
+    return normalize((most_moves - numMoves + 0.0) / (most_moves - least_moves));
+  }
+
+  private double goalProximity(MachineState state)
+      throws GoalDefinitionException {
+    StateMachine stateMachine = getStateMachine();
+    return normalize((stateMachine.getGoal(state, getRole()) + 0.0));
+  }
+
+  private double normalize(double input) {
+    return (int) (input * (HEUR_MAX_SCORE - HEUR_MIN_SCORE) / 100 + 0.5)
+        + HEUR_MIN_SCORE + 0.001;
+  }
+
+  private double getHeuristicScore(MachineState state)
+      throws MoveDefinitionException, GoalDefinitionException,
+      TransitionDefinitionException {
+
+    // return 0.0;
+    double score = 0;
+    double normalize = 0;
+    if (heur_weight[0] > 0) {
+      score = score + heur_weight[0] * mobility(state);
+      normalize = normalize + heur_weight[0];
+    }
+    if (heur_weight[1] > 0) {
+      score = score + heur_weight[1] * focus(state);
+      normalize = normalize + heur_weight[1];
+    }
+    if (heur_weight[2] > 0) {
+      score = score + heur_weight[2] * goalProximity(state);
+      normalize = normalize + heur_weight[2];
+    }
+    if (heur_weight[3] > 0) {
+      score = score + heur_weight[3] * monteCarlo(state);
+      normalize = normalize + heur_weight[3];
+    }
+
+    score = score / normalize;
+    return (int) (score + 0.5) + 0.001;
+  }
+
+  private void setHeuristicWeights(double[] metaResults) {
     boolean chooseOne = true;
     boolean weighted = false;
     double bestScore = -Double.MAX_VALUE;
-    System.out.println("This is what I got from metagaming: " + Arrays.toString(metaResults));
+    System.out.println("This is what I got from metagaming: "
+        + Arrays.toString(metaResults));
     int winner = 0;
-    if (chooseOne){
-      for (int i=0; i<metaResults.length; i++){
-        if (metaResults[i] > bestScore){
+    if (chooseOne) {
+      for (int i = 0; i < metaResults.length; i++) {
+        if (metaResults[i] > bestScore) {
           winner = i;
           bestScore = metaResults[i];
         }
       }
       System.out.println("Choosing heuristic: " + winner);
-      for (int i=0; i<metaResults.length; i++){
-        if (i==winner)
+      for (int i = 0; i < metaResults.length; i++) {
+        if (i == winner)
           heur_weight[i] = 1;
         else
           heur_weight[i] = 0;
       }
     }
-    if (weighted){
-// TODO:add stuff
+    if (weighted) {
+      // TODO:add stuff
     }
   }
 
   private double getMetaHeuristic(MachineState state, int heur)
-      throws MoveDefinitionException, GoalDefinitionException {
+      throws MoveDefinitionException, GoalDefinitionException,
+      TransitionDefinitionException {
     double score = 0;
     if (heur == 0) {
       score = mobility(state);
@@ -170,6 +299,9 @@ public class ThePlayerV4 extends StateMachineGamer
     if (heur == 2) {
       score = goalProximity(state);
     }
+    if (heur == 3) {
+      score = monteCarlo(state);
+    }
     return (int) (score + 0.5) + 0.001;
   }
 
@@ -177,12 +309,14 @@ public class ThePlayerV4 extends StateMachineGamer
   public void stateMachineMetaGame(long timeout)
       throws TransitionDefinitionException, MoveDefinitionException,
       GoalDefinitionException {
+    // TODO: rather than choose between heuristics, maybe just try to set a good
+    // C for MCTS
+    // TODO: play against searchlight gamer instead of random gamer
     long finishBy = timeout - 1000;
     StateMachine stateMachine = getStateMachine();
     MachineState rootState = getCurrentState();
 
     stateMachine.getInitialState();
-
     most_moves = stateMachine.getLegalMoves(rootState, getRole()).size();
     least_moves = most_moves;
     MachineState currentState;
@@ -191,8 +325,7 @@ public class ThePlayerV4 extends StateMachineGamer
     int validMoves = 0;
     List<Move> myMoves;
     Move bestMove;
-    double bestScore;
-    double thisScore;
+    double bestScore, thisScore;
     int myMoveLen;
     int heurNum = 0;
     int heurTotal = heur_weight.length;
@@ -214,24 +347,27 @@ public class ThePlayerV4 extends StateMachineGamer
             + stateMachine.getLegalJointMoves(currentState).size();
         bestScore = -Double.MAX_VALUE;
         bestMove = myMoves.get(0);
-        for (Move thisMove : myMoves){
-          thisScore = getMetaHeuristic(stateMachine.getRandomNextState(currentState, getRole(), thisMove),heurNum);
-          if (thisScore > bestScore){
+        for (Move thisMove : myMoves) {
+          thisScore = getMetaHeuristic(stateMachine.getRandomNextState(
+              currentState, getRole(), thisMove), heurNum);
+          if (thisScore > bestScore) {
             bestScore = thisScore;
             bestMove = thisMove;
           }
         }
-        currentState = stateMachine.getRandomNextState(currentState, getRole(), bestMove);
+        currentState = stateMachine.getRandomNextState(currentState, getRole(),
+            bestMove);
         isTerminal = stateMachine.isTerminal(currentState);
-        if (isTerminal){
-          heurScores[heurNum] = heurScores[heurNum] + stateMachine.getGoal(currentState, getRole());
+        if (isTerminal) {
+          heurScores[heurNum] = heurScores[heurNum]
+              + stateMachine.getGoal(currentState, getRole());
           heurCount[heurNum] = heurCount[heurNum] + 1;
         }
         numStatesExplored++;
       }
-      if (System.currentTimeMillis() > finishBy){
-        for (int i=0; i<heurTotal; i++){
-          heurScores[i] = heurScores[i]/heurCount[i];
+      if (System.currentTimeMillis() > finishBy) {
+        for (int i = 0; i < heurTotal; i++) {
+          heurScores[i] = heurScores[i] / heurCount[i];
         }
         setHeuristicWeights(heurScores);
         break;
@@ -248,175 +384,56 @@ public class ThePlayerV4 extends StateMachineGamer
         / numStatesExplored);
   }
 
-	public void stateMachineExplore(long timeout, Move move) throws MoveDefinitionException, TransitionDefinitionException
-	{
-		long finishBy = timeout - 1000;
-		StateMachine stateMachine = getStateMachine();
-		MachineState rootState = getCurrentState();
+  public void stateMachineExplore(long timeout, Move move)
+      throws MoveDefinitionException, TransitionDefinitionException {
+    // TODO: modify for MCTS
+    long finishBy = timeout - 1000;
+    StateMachine stateMachine = getStateMachine();
+    MachineState rootState = getCurrentState();
 
-		MachineState currentState;
-		while(true) {
-			if(System.currentTimeMillis() > finishBy)
-				break;
-			currentState = stateMachine.getRandomNextState(rootState, getRole(), move);
-			boolean isTerminal  = stateMachine.isTerminal(currentState);
-			while(!isTerminal) {
-				currentState = stateMachine.getRandomNextState(currentState);
-				isTerminal = stateMachine.isTerminal(currentState);
-			}
-		}
-	}
+    MachineState currentState;
+    while (true) {
+      if (System.currentTimeMillis() > finishBy)
+        break;
+      currentState = stateMachine
+          .getRandomNextState(rootState, getRole(), move);
+      boolean isTerminal = stateMachine.isTerminal(currentState);
+      while (!isTerminal) {
+        currentState = stateMachine.getRandomNextState(currentState);
+        isTerminal = stateMachine.isTerminal(currentState);
+      }
+    }
+  }
 
-	@Override
-	public Move stateMachineSelectMove(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
-	{
-		StateMachine theMachine = getStateMachine();
-		long start = System.currentTimeMillis();
-		long finishBy = timeout - 1000;
-		max_depth = 1;
+  @Override
+  public String getName() {
+    return getClass().getSimpleName();
+  }
 
-		MachineState currentState = getCurrentState();
-		List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
-		Random random = new Random();
-		Move selection = moves.get(random.nextInt(moves.size()));
-		System.out.println(moves);
-		Move temp_selection;
-		double score = 0;
+  // This is the default State Machine
+  @Override
+  public StateMachine getInitialStateMachine() {
+    return new CachedStateMachine(new ProverStateMachine());
+  }
 
-		if (moves.size() == 1){
-			return exitSequence(moves, selection, start, timeout);
-		}
+  // This is the default Sample Panel
+  @Override
+  public DetailPanel getDetailPanel() {
+    return new SimpleDetailPanel();
+  }
 
-		while (max_depth < Integer.MAX_VALUE){
-			double temp_score = Integer.MIN_VALUE;
-			double alpha = Integer.MIN_VALUE;
-			double beta = Integer.MAX_VALUE;
-			temp_selection = moves.get(random.nextInt(moves.size()));
-			for(Move move: moves)
-			{
-				if(System.currentTimeMillis() > finishBy){
-					System.out.println("OMG I'm gonna time out!!!!!!!!!");
-					if(((int)temp_score == temp_score)&&(temp_score >= score)){
-						selection = temp_selection;
-						score = temp_score;
-					}
-					System.out.println("move: "+selection+" score: "+score);
-					return exitSequence(moves, selection, start, timeout);
-				}
+  @Override
+  public void stateMachineStop() {
+    // Sample gamers do no special cleanup when the match ends normally.
+  }
 
-				double result = minScore(currentState, move, alpha, beta, max_depth, finishBy);
-				if(result > temp_score)
-				{
-					temp_score = result;
-					temp_selection = move;
-					if (temp_score == 100){
-						System.out.println("max score: 100");
-						System.out.println(temp_selection);
-						return exitSequence(moves, temp_selection, start, timeout);
-					}
-				}
-			}
-			selection = temp_selection;
-			score = temp_score;
-			max_depth++;
-			System.out.println("Current searching depth set to "+max_depth);
-		}
-		System.out.println("selection: "+selection);
+  @Override
+  public void stateMachineAbort() {
+    // Sample gamers do no special cleanup when the match ends abruptly.
+  }
 
-		return exitSequence(moves, selection, start, timeout);
-	}
-
-	private Move exitSequence(List<Move> moves, Move selection, long start, long timeout) throws TransitionDefinitionException, MoveDefinitionException{
-		stateMachineExplore(timeout, selection);
-		long stop = System.currentTimeMillis();
-		System.out.println("time left: "+(stop-start));
-		notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
-		return selection;
-	}
-
-	private double minScore(MachineState currentState, Move move, double alpha, double beta, int depth, long finishBy) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException
-	{
-		StateMachine theMachine = getStateMachine();
-		List<List<Move>> list_moves = theMachine.getLegalJointMoves(currentState, getRole(), move);
-
-		for (List<Move> moves: list_moves){
-			MachineState nextState = theMachine.getNextState(currentState, moves);
-			if(theMachine.isTerminal(nextState)) {
-				double terminal = theMachine.getGoal(nextState, getRole());
-				if (terminal == 0){
-					terminal = terminal + 0.001*(max_depth-depth);
-					beta = Math.min(beta, terminal);
-					return terminal;
-				}
-				beta = Math.min(beta, terminal);
-				if (beta <= alpha)
-					return alpha;
-			}
-			else if (depth == 0 || (max_depth-depth < 2 && System.currentTimeMillis() > finishBy)) {
-				double h_score = getHeuristicScore(nextState);
-				beta = Math.min(beta, h_score);
-				if(h_score == 0)
-					return h_score;
-				if (beta <= alpha)
-					return alpha;
-			}
-			else {
-				double highest = maxScore(nextState, alpha, beta, depth, finishBy);
-				beta = Math.min(beta, highest);
-				//        if(highest < 1)
-					//          return highest;
-				if (beta <= alpha)
-					return alpha;
-			}
-		}
-		return beta;
-	}
-
-	private double maxScore(MachineState nextState, double alpha, double beta, int depth, long finishBy) throws MoveDefinitionException, TransitionDefinitionException, GoalDefinitionException{
-		StateMachine theMachine = getStateMachine();
-		List<Move> nextMoves = theMachine.getLegalMoves(nextState, getRole());
-
-		for (Move nextMove: nextMoves){
-			double result = minScore(nextState, nextMove, alpha, beta, depth-1, finishBy);
-			alpha = Math.max(alpha, result);
-			if(result > 99)
-				return result;
-			if (alpha >= beta)
-				return beta;
-		}
-		return alpha;
-	}
-	@Override
-	public String getName() {
-		return getClass().getSimpleName();
-	}
-
-	// This is the default State Machine
-	@Override
-	public StateMachine getInitialStateMachine() {
-		return new CachedStateMachine(new ProverStateMachine());
-	}
-
-	// This is the default Sample Panel
-	@Override
-	public DetailPanel getDetailPanel() {
-		return new SimpleDetailPanel();
-	}
-
-	@Override
-	public void stateMachineStop() {
-		// Sample gamers do no special cleanup when the match ends normally.
-	}
-
-	@Override
-	public void stateMachineAbort() {
-		// Sample gamers do no special cleanup when the match ends abruptly.
-	}
-
-	@Override
-	public void preview(Game g, long timeout) throws GamePreviewException {
-		// Sample gamers do no game previewing.
-	}
+  @Override
+  public void preview(Game g, long timeout) throws GamePreviewException {
+    // Sample gamers do no game previewing.
+  }
 }
-
-
