@@ -21,10 +21,10 @@ import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 
-// THE Player. version 4. May.5.2014.
-// Switch to MCTS, single player
+// THE Player. version 5. May.6.2014.
+// MCTS multi player
 
-public class ThePlayerV4 extends StateMachineGamer {
+public class ThePlayerV5 extends StateMachineGamer {
 
   static double HEUR_MIN_SCORE = 20;
   static double HEUR_MAX_SCORE = 80;
