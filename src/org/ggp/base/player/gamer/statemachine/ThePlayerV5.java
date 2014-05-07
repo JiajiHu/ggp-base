@@ -29,7 +29,7 @@ public class ThePlayerV5 extends StateMachineGamer {
   static double HEUR_MIN_SCORE = 20;
   static double HEUR_MAX_SCORE = 80;
   //TODO: learn MC_NUM_ATTEMPTS during metagaming
-  static double MC_NUM_ATTEMPTS = 20;
+  static double MC_NUM_ATTEMPTS = 5;
 
   // TODO: better way to store this relation -- how?
   HashMap<MachineState, Node> stateToNode = new HashMap<MachineState, Node>();
@@ -41,7 +41,7 @@ public class ThePlayerV5 extends StateMachineGamer {
   int num_roles;
   int num_me;
   //TODO: learn C during metagaming
-  int C = 1000;
+  int C = 100;
   // double[] heur_weight = new double[3];
   double[] heur_weight = { 0.0, 0.0, 0.0, 1.0 };
 
@@ -49,29 +49,28 @@ public class ThePlayerV5 extends StateMachineGamer {
     // TODO: expand to multiplayer: need a boolean for is_me,
     int visits = 0;
     int active_player;
-    double my_util = 0;
+//    double my_util = 0;
     double[] utility = new double[num_roles];
     Node parent = null;
     ArrayList<Node> children = new ArrayList<Node>();
 
-    Node(MachineState state, int active_p) {
-      this.active_player = active_p;
+    Node(MachineState state) throws MoveDefinitionException {
+      this.active_player = getActiveRole(state);
       stateToNode.put(state, this);
       nodeToState.put(this, state);
     }
 
-    Node(Node p, MachineState state, int active_p) {
+    Node(Node p, MachineState state) throws MoveDefinitionException {
       this.parent = p;
       p.children.add(this);
-      this.active_player = active_p;
+      this.active_player = getActiveRole(state);
       stateToNode.put(state, this);
       nodeToState.put(this, state);
     }
   };
 
-  double selectfn(Node node) {
-    return node.utility[node.active_player] + C * Math.sqrt(Math.log(node.parent.visits) / node.visits);
-//    return node.my_util + C * Math.sqrt(Math.log(node.parent.visits) / node.visits);
+  double selectfn(Node node, int player) {
+    return (node.utility[player]/node.visits) + C * Math.sqrt(Math.log(node.parent.visits) / node.visits);
   }
 
   Node select(Node node) {
@@ -84,7 +83,7 @@ public class ThePlayerV5 extends StateMachineGamer {
     double score = 0;
     Node result = node;
     for (int i = 0; i < node.children.size(); i++) {
-      double newScore = selectfn(node.children.get(i));
+      double newScore = selectfn(node.children.get(i), node.active_player);
       if (newScore > score) {
         score = newScore;
         result = node.children.get(i);
@@ -93,6 +92,7 @@ public class ThePlayerV5 extends StateMachineGamer {
     //prevent an infinite loop
     if (result == node)
       return node;
+    result.parent = node;
     return select(result);
   }
 
@@ -108,7 +108,7 @@ public class ThePlayerV5 extends StateMachineGamer {
       // actions -- works for current games, fix in the future
       MachineState nextState = theMachine.getRandomNextState(currentState,
           currentRole, move);
-      Node newNode = new Node(node, nextState, getActiveRole(nextState));
+      Node newNode = new Node(node, nextState);
     }
   }
 
@@ -129,10 +129,10 @@ public class ThePlayerV5 extends StateMachineGamer {
       node.utility[i] += score[i];
     }
     /**************************************/
-    if (node.active_player == num_me)
-      node.my_util += node.utility[num_me];
-    else
-      node.my_util -= node.utility[num_me];
+//    if (node.active_player == num_me)
+//      node.my_util += node.utility[num_me];
+//    else
+//      node.my_util -= node.utility[num_me];
     /**************************************/
     if (node.parent != null)
       backPropogate(node.parent, score);
@@ -210,14 +210,11 @@ public class ThePlayerV5 extends StateMachineGamer {
     if (moves.size() == 1)
       return exitSequence(moves, moves.get(0), start, timeout);
 
-    stateToNode = new HashMap<MachineState, Node>();
-    nodeToState = new HashMap<Node, MachineState>();
-
     Node rootNode;
     if (stateToNode.containsKey(currentState))
       rootNode = stateToNode.get(currentState);
     else
-      rootNode = new Node(currentState,num_me);
+      rootNode = new Node(currentState);
 
     while (true) {
       if (System.currentTimeMillis() > finishBy) {
@@ -354,10 +351,10 @@ public class ThePlayerV5 extends StateMachineGamer {
         num_me = i;
     }
 
-//    System.out.println("total num players: "+num_roles);
-//    System.out.println("my role num: "+num_me);
-//    System.out.println("players: "+roles);
-//    System.out.println("my player: "+roles.get(num_me));
+    System.out.println("total num players: "+num_roles);
+    System.out.println("my role num: "+num_me);
+    System.out.println("players: "+roles);
+    System.out.println("my player: "+roles.get(num_me));
 
     stateMachine.getInitialState();
     most_moves = stateMachine.getLegalMoves(rootState, getRole()).size();
