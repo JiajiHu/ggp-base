@@ -48,9 +48,9 @@ public class ThePlayerV5 extends StateMachineGamer {
   public class Node {
     // TODO: expand to multiplayer: need a boolean for is_me,
     int visits = 0;
-    int active_player = num_me;
+    int active_player;
+    double my_util = 0;
     double[] utility = new double[num_roles];
-    boolean stopBP = false;
     Node parent = null;
     ArrayList<Node> children = new ArrayList<Node>();
 
@@ -70,7 +70,8 @@ public class ThePlayerV5 extends StateMachineGamer {
   };
 
   double selectfn(Node node) {
-    return node.utility[num_me] + C * Math.sqrt(Math.log(node.parent.visits) / node.visits);
+    return node.utility[node.active_player] + C * Math.sqrt(Math.log(node.parent.visits) / node.visits);
+//    return node.my_util + C * Math.sqrt(Math.log(node.parent.visits) / node.visits);
   }
 
   Node select(Node node) {
@@ -127,7 +128,13 @@ public class ThePlayerV5 extends StateMachineGamer {
     for(int i=0;i<num_roles;i++){
       node.utility[i] += score[i];
     }
-    if (!node.stopBP && node.parent != null)
+    /**************************************/
+    if (node.active_player == num_me)
+      node.my_util += node.utility[num_me];
+    else
+      node.my_util -= node.utility[num_me];
+    /**************************************/
+    if (node.parent != null)
       backPropogate(node.parent, score);
   }
 
@@ -179,9 +186,9 @@ public class ThePlayerV5 extends StateMachineGamer {
       MachineState nextState = theMachine.getRandomNextState(currentState,
           getRole(), move);
       Node nextNode = stateToNode.get(nextState);
-      System.out.println("move: "+move);
-      System.out.println("visits: "+nextNode.visits);
-      System.out.println("average score: "+nextNode.utility[num_me] / nextNode.visits);
+      System.out.print("move: "+move);
+      System.out.print("  visits: "+nextNode.visits);
+      System.out.println("  average score for me: "+nextNode.utility[num_me] / nextNode.visits);
       if (nextNode.utility[num_me] / nextNode.visits > curBest) {
         curBest = nextNode.utility[num_me] / nextNode.visits;
         selection = move;
@@ -203,12 +210,14 @@ public class ThePlayerV5 extends StateMachineGamer {
     if (moves.size() == 1)
       return exitSequence(moves, moves.get(0), start, timeout);
 
+    stateToNode = new HashMap<MachineState, Node>();
+    nodeToState = new HashMap<Node, MachineState>();
+
     Node rootNode;
     if (stateToNode.containsKey(currentState))
       rootNode = stateToNode.get(currentState);
     else
       rootNode = new Node(currentState,num_me);
-    rootNode.stopBP = true;
 
     while (true) {
       if (System.currentTimeMillis() > finishBy) {
@@ -341,11 +350,14 @@ public class ThePlayerV5 extends StateMachineGamer {
     List<Role> roles = stateMachine.getRoles();
     num_roles = roles.size();
     for (int i=0;i<num_roles;i++){
-      if (roles.get(i)==getRole())
+      if (roles.get(i).equals(getRole()))
         num_me = i;
     }
-    System.out.println("total num players: "+num_roles);
-    System.out.println("my role num: "+num_me);
+
+//    System.out.println("total num players: "+num_roles);
+//    System.out.println("my role num: "+num_me);
+//    System.out.println("players: "+roles);
+//    System.out.println("my player: "+roles.get(num_me));
 
     stateMachine.getInitialState();
     most_moves = stateMachine.getLegalMoves(rootState, getRole()).size();
