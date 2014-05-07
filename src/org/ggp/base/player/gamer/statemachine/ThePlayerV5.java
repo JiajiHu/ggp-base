@@ -29,7 +29,7 @@ public class ThePlayerV5 extends StateMachineGamer {
   static double HEUR_MIN_SCORE = 20;
   static double HEUR_MAX_SCORE = 80;
   //TODO: learn MC_NUM_ATTEMPTS during metagaming
-  static double MC_NUM_ATTEMPTS = 50;
+  static double MC_NUM_ATTEMPTS = 20;
 
   // TODO: better way to store this relation -- how?
   HashMap<MachineState, Node> stateToNode = new HashMap<MachineState, Node>();
@@ -38,6 +38,8 @@ public class ThePlayerV5 extends StateMachineGamer {
   int max_depth = 1;
   int most_moves;
   int least_moves;
+  int num_roles;
+  int num_me;
   //TODO: learn C during metagaming
   int C = 1000;
   // double[] heur_weight = new double[3];
@@ -45,28 +47,30 @@ public class ThePlayerV5 extends StateMachineGamer {
 
   public class Node {
     // TODO: expand to multiplayer: need a boolean for is_me,
-    // need a count for opponent score
     int visits = 0;
-    double utility = 0;
+    int active_player = num_me;
+    double[] utility = new double[num_roles];
     boolean stopBP = false;
     Node parent = null;
     ArrayList<Node> children = new ArrayList<Node>();
 
-    Node(MachineState state) {
+    Node(MachineState state, int active_p) {
+      this.active_player = active_p;
       stateToNode.put(state, this);
       nodeToState.put(this, state);
     }
 
-    Node(Node p, MachineState state) {
+    Node(Node p, MachineState state, int active_p) {
       this.parent = p;
       p.children.add(this);
+      this.active_player = active_p;
       stateToNode.put(state, this);
       nodeToState.put(this, state);
     }
   };
 
   double selectfn(Node node) {
-    return node.utility + C * Math.sqrt(Math.log(node.parent.visits) / node.visits);
+    return node.utility[num_me] + C * Math.sqrt(Math.log(node.parent.visits) / node.visits);
   }
 
   Node select(Node node) {
@@ -103,33 +107,50 @@ public class ThePlayerV5 extends StateMachineGamer {
       // actions -- works for current games, fix in the future
       MachineState nextState = theMachine.getRandomNextState(currentState,
           currentRole, move);
-      Node newNode = new Node(node, nextState);
+      Node newNode = new Node(node, nextState, getActiveRole(nextState));
     }
   }
 
-  void backPropogate(Node node, double score) {
+  int getActiveRole(MachineState state) throws MoveDefinitionException{
+    StateMachine theMachine = getStateMachine();
+    if(theMachine.isTerminal(state))
+      return num_me;
+    for(int i=0; i<num_roles; i++){
+      if(theMachine.getLegalMoves(state, theMachine.getRoles().get(i)).size() > 1)
+        return i;
+    }
+    return num_me;
+  }
+
+  void backPropogate(Node node, double[] score) {
     node.visits += 1;
-    node.utility += score;
+    for(int i=0;i<num_roles;i++){
+      node.utility[i] += score[i];
+    }
     if (!node.stopBP && node.parent != null)
       backPropogate(node.parent, score);
   }
 
   private int[] depth = new int[1];
 
-  public double monteCarlo(MachineState state)
+  public double[] monteCarlo(MachineState state)
       throws TransitionDefinitionException, MoveDefinitionException,
       GoalDefinitionException {
     StateMachine theMachine = getStateMachine();
 
-    int moveTotalPoints = 0;
     int numAttempts = 0;
 
+    double[] scores = new double[num_roles];
     for (; numAttempts < MC_NUM_ATTEMPTS; numAttempts++) {
       MachineState finalState = theMachine.performDepthCharge(state, depth);
-      int theScore = theMachine.getGoal(finalState, getRole());
-      moveTotalPoints += theScore;
+      List<Integer> thisScores = theMachine.getGoals(finalState);
+      for (int i=0;i<num_roles;i++)
+        scores[i] += thisScores.get(i);
     }
-    return 1.0 * moveTotalPoints / numAttempts;
+    for (int i=0;i<num_roles;i++)
+      scores[i] = scores[i]/numAttempts;
+
+    return scores;
   }
 
   public void performMCTSCycle(Node node) throws MoveDefinitionException,
@@ -140,7 +161,7 @@ public class ThePlayerV5 extends StateMachineGamer {
       expand(selected_node);
     // NOTE: monteCarlo performs MC_NUM_ATTEMPTS depth-charges, so all visit
     // counts should in fact all be multiplied by that number.
-    double score = monteCarlo(selected_state);
+    double[] score = monteCarlo(selected_state);
     backPropogate(selected_node, score);
   }
 
@@ -160,9 +181,9 @@ public class ThePlayerV5 extends StateMachineGamer {
       Node nextNode = stateToNode.get(nextState);
       System.out.println("move: "+move);
       System.out.println("visits: "+nextNode.visits);
-      System.out.println("average score: "+nextNode.utility / nextNode.visits);
-      if (nextNode.utility / nextNode.visits > curBest) {
-        curBest = nextNode.utility / nextNode.visits;
+      System.out.println("average score: "+nextNode.utility[num_me] / nextNode.visits);
+      if (nextNode.utility[num_me] / nextNode.visits > curBest) {
+        curBest = nextNode.utility[num_me] / nextNode.visits;
         selection = move;
       }
     }
@@ -186,7 +207,7 @@ public class ThePlayerV5 extends StateMachineGamer {
     if (stateToNode.containsKey(currentState))
       rootNode = stateToNode.get(currentState);
     else
-      rootNode = new Node(currentState);
+      rootNode = new Node(currentState,num_me);
     rootNode.stopBP = true;
 
     while (true) {
@@ -206,7 +227,7 @@ public class ThePlayerV5 extends StateMachineGamer {
       MoveDefinitionException {
     stateMachineExplore(timeout, selection);
     long stop = System.currentTimeMillis();
-    System.out.println("time left: " + (stop - start));
+    System.out.println("time left: " + (timeout-stop));
     notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
     return selection;
   }
@@ -253,7 +274,7 @@ public class ThePlayerV5 extends StateMachineGamer {
       normalize = normalize + heur_weight[2];
     }
     if (heur_weight[3] > 0) {
-      score = score + heur_weight[3] * monteCarlo(state);
+      score = score + heur_weight[3] * monteCarlo(state)[num_me];
       normalize = normalize + heur_weight[3];
     }
 
@@ -292,18 +313,18 @@ public class ThePlayerV5 extends StateMachineGamer {
       throws MoveDefinitionException, GoalDefinitionException,
       TransitionDefinitionException {
     double score = 0;
-    if (heur == 0) {
-      score = mobility(state);
-    }
-    if (heur == 1) {
-      score = focus(state);
-    }
-    if (heur == 2) {
-      score = goalProximity(state);
-    }
-    if (heur == 3) {
-      score = monteCarlo(state);
-    }
+//    if (heur == 0) {
+//      score = mobility(state);
+//    }
+//    if (heur == 1) {
+//      score = focus(state);
+//    }
+//    if (heur == 2) {
+//      score = goalProximity(state);
+//    }
+//    if (heur == 3) {
+//      score = monteCarlo(state)[num_me];
+//    }
     return (int) (score + 0.5) + 0.001;
   }
 
@@ -317,6 +338,14 @@ public class ThePlayerV5 extends StateMachineGamer {
     long finishBy = timeout - 1000;
     StateMachine stateMachine = getStateMachine();
     MachineState rootState = getCurrentState();
+    List<Role> roles = stateMachine.getRoles();
+    num_roles = roles.size();
+    for (int i=0;i<num_roles;i++){
+      if (roles.get(i)==getRole())
+        num_me = i;
+    }
+    System.out.println("total num players: "+num_roles);
+    System.out.println("my role num: "+num_me);
 
     stateMachine.getInitialState();
     most_moves = stateMachine.getLegalMoves(rootState, getRole()).size();
