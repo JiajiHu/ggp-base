@@ -21,8 +21,8 @@ import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 
-// THE Player. version 5. May.6.2014.
-// MCTS multi player
+// THE Player. version 5. May.7.2014.
+// MCTS multi player -- keeps scores for every player -- CONTAINS BUGS!
 
 public class ThePlayerV5 extends StateMachineGamer {
 
@@ -42,7 +42,6 @@ public class ThePlayerV5 extends StateMachineGamer {
   int num_me;
   //TODO: learn C during metagaming
   int C = 100;
-  // double[] heur_weight = new double[3];
   double[] heur_weight = { 0.0, 0.0, 0.0, 1.0 };
 
   public class Node {
