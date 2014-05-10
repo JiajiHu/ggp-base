@@ -397,6 +397,7 @@ public class ThePlayerV6 extends StateMachineGamer {
           heurCount[heurNum] = heurCount[heurNum] + 1;
         }
         numStatesExplored++;
+
       }
       if (System.currentTimeMillis() > finishBy) {
         for (int i = 0; i < heurTotal; i++) {
