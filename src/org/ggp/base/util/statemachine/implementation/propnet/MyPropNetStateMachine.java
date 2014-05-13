@@ -1,9 +1,12 @@
 package org.ggp.base.util.statemachine.implementation.propnet;
+
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 
 import org.ggp.base.util.gdl.grammar.Gdl;
@@ -26,29 +29,20 @@ import org.ggp.base.util.statemachine.implementation.prover.query.ProverQueryBui
 @SuppressWarnings("unused")
 public class MyPropNetStateMachine extends StateMachine {
 
-	private int currentState = -1;
+    /** The underlying proposition network  */
+    private PropNet propNet;
+    /** The topological ordering of the propositions */
+    private List<Proposition> ordering;
+    /** The player roles */
+    private List<Role> roles;
 
-
-	/** The underlying proposition network  */
-	private PropNet propNet;
-	/** An index from GdlSentence to Base Propositions.  The truth value of base propositions determines the state */
 	private Map<GdlSentence, Proposition> basePropositions;
-	/** An index from GdlSentence to Input Propositions.  Input propositions correspond to moves a player can take */
 	private Map<GdlSentence, Proposition> inputPropositions;
-	/** The terminal proposition.  If the terminal proposition's value is true, the game is over */
-	private Proposition terminal;
-	/** Maps roles to their legal propositions */
 	private Map<Role, Set<Proposition>> legalPropositions;
-	/** Maps roles to their goal propositions */
 	private Map<Role, Set<Proposition>> goalPropositions;
-	/** The topological ordering of the propositions */
-	private List<Proposition> ordering;
-	/** Set to true and everything else false, then propagate the truth values to compute the initial state*/
-	private Proposition init;
-	/** The roles of different players in the game */
-	private List<Role> roles;
-	/** A map between legal and input propositions.  The map contains mappings in both directions*/
 	private Map<Proposition, Proposition> legalInputMap;
+	private Proposition pTerminal;
+	private Proposition pInit;
 
     /**
      * Initializes the PropNetStateMachine. You should compute the topological
@@ -57,61 +51,120 @@ public class MyPropNetStateMachine extends StateMachine {
      */
     @Override
     public void initialize(List<Gdl> description) {
-    	System.out.println("initializing!");
 		propNet = PropNetFactory.create(description);
 		roles = propNet.getRoles();
 		basePropositions = propNet.getBasePropositions();
 		inputPropositions = propNet.getInputPropositions();
-		terminal = propNet.getTerminalProposition();
 		legalPropositions = propNet.getLegalPropositions();
-		init = propNet.getInitProposition();
 		goalPropositions = propNet.getGoalPropositions();
 		legalInputMap = propNet.getLegalInputMap();
+		pTerminal = propNet.getTerminalProposition();
+		pInit = propNet.getInitProposition();
 		ordering = getOrdering();
-		//testOrdering();
-		//printOrdering();
+
+		if(roles.size() == 1) {
+			System.out.println("Here 1");
+			propNet = new PropNet(roles, makeDisjunctiveFactor());
+			System.out.println("Here 2");
+			setUpPnet();
+			System.out.println("Here 3");
+
+		}
 	}
 
-	protected void clearBasePropositions(){
+	private void setUpPnet()
+	{
+		basePropositions = propNet.getBasePropositions();
+		inputPropositions = propNet.getInputPropositions();
+		pTerminal = propNet.getTerminalProposition();
+		legalPropositions = propNet.getLegalPropositions();
+		pInit = propNet.getInitProposition();
+		goalPropositions = propNet.getGoalPropositions();
+		legalInputMap = propNet.getLegalInputMap();
+		System.out.println("Here 5");
+		ordering = getOrdering();
+		System.out.println("Here 6");
+	}
+
+	protected void clearBases(){
 		for(GdlSentence key : basePropositions.keySet()){
 			basePropositions.get(key).setValue(false);
 		}
 	}
 
-	protected void clearInputPropositions(){
+	protected void clearInputs(){
 		for(GdlSentence key : inputPropositions.keySet()){
 			inputPropositions.get(key).setValue(false);
 		}
 	}
 
-	protected void propagatePropositionValues()
+	//TODO: do we need to consider and, or, not gates? --Ding
+	protected void propmarkp()
 	{
-		// compute truth values for propositions
 		for(Proposition p : ordering){
 			boolean val = p.getSingleInput().getValue();
 			p.setValue(val);
 		}
 	}
 
-	protected void initializeBasePropositions(MachineState state){
-
-		clearBasePropositions();
-
-		Set<GdlSentence> g = state.getContents();
-		for(GdlSentence s : g){
+	/*
+	protected void propmarkp()
+	{
+		long start = System.currentTimeMillis();
+		// compute truth values for propositions
+		for(Proposition p : ordering){
+			String label = getLabelFromComponent(p.getSingleInput());
+			Set<Component> children = p.getSingleInput().getInputs();
+			if(label.equalsIgnoreCase("and")){
+				boolean val = true;
+				for(Component c: children){
+					if(!c.getValue()){
+						val = false;
+						break;
+					}
+				}
+				p.setValue(val);
+			}
+			else if(label.equalsIgnoreCase("or")){
+				boolean val = false;
+				for(Component c: children){
+					if(c.getValue()){
+						val = true;
+						break;
+					}
+				}
+				p.setValue(val);
+			}
+			else if(label.equalsIgnoreCase("not")){
+				for(Component c: children){
+					p.setValue(!c.getValue());
+					break;
+				}
+			}
+			else{
+				boolean val = p.getSingleInput().getValue();
+				//System.out.println("  " + p.getSingleInput().toString());
+				p.setValue(val);
+			}
+		}
+		System.out.println("prop values (new) took : " + (System.currentTimeMillis()-start));
+	}
+	*/
+	protected void markBases(MachineState state){
+		clearBases();
+		Set<GdlSentence> sentences = state.getContents();
+		for(GdlSentence s : sentences){
 			Proposition p = basePropositions.get(s);
 			p.setValue(true);
 		}
 	}
 
-
-	protected void initializeInputPropositions(List<Move> moves)
+	protected void markActions(List<Move> moves)
 	{
-		clearInputPropositions();
+		clearInputs();
 		List<GdlSentence> doesMoves = toDoes(moves);
-		// set props to true based on moves:
-		for(GdlSentence g : doesMoves){
-			Proposition p = inputPropositions.get(g);
+		for(GdlSentence s : doesMoves){
+			Proposition p = inputPropositions.get(s);
 			p.setValue(true);
 		}
 	}
@@ -122,9 +175,9 @@ public class MyPropNetStateMachine extends StateMachine {
 	 */
 	@Override
 	public boolean isTerminal(MachineState state) {
-		initializeBasePropositions(state);
-		propagatePropositionValues();
-		return terminal.getValue();
+		markBases(state);
+		propmarkp();
+		return pTerminal.getValue();
 	}
 
 	/**
@@ -138,8 +191,8 @@ public class MyPropNetStateMachine extends StateMachine {
 	public int getGoal(MachineState state, Role role)
 	throws GoalDefinitionException {
 
-		initializeBasePropositions(state);
-		propagatePropositionValues();
+		markBases(state);
+		propmarkp();
 		Set<Proposition> p = goalPropositions.get(role);
 		boolean set = false;
 		Proposition goalProp = null;
@@ -154,7 +207,7 @@ public class MyPropNetStateMachine extends StateMachine {
 			}
 		}
 
-		return new Integer(getGoalValue(goalProp));
+		return getGoalValue(goalProp);
 	}
 
 	/**
@@ -164,53 +217,31 @@ public class MyPropNetStateMachine extends StateMachine {
 	 */
 	@Override
 	public MachineState getInitialState() {
-
-
-		clearBasePropositions();
-		init.setValue(true);
-		propagatePropositionValues();
-		return getStateFromBase();
+		clearBases();
+		pInit.setValue(true);
+		propmarkp();
+		MachineState initState = getStateFromBase();
+		pInit.setValue(false);
+		return initState;
 	}
 
-
-	protected Set<GdlSentence> getNextStepTrueBaseProps()
-	{
-		Set<GdlSentence> sentences = new HashSet<GdlSentence>();
-		// get new values of base propositions:
-		for(GdlSentence p: basePropositions.keySet()){
-			Proposition prop = basePropositions.get(p);
-			// all inputs to base propositions == transitions
-			if(prop.getSingleInput().getValue()){
-				sentences.add(prop.getName());
-			}
-		}
-
-		return sentences;
-
-	}
 	/**
 	 * Computes the legal moves for role in state.
 	 */
 	@Override
 	public List<Move> getLegalMoves(MachineState state, Role role)
 	throws MoveDefinitionException {
-
-		System.err.println(state);
-		List<Move> ret = new ArrayList<Move>();
-		initializeBasePropositions(state);
- 		propagatePropositionValues();
-
-		Set<Proposition> legalMoves = legalPropositions.get(role);
-		for(Proposition p : legalMoves){
+		markBases(state);
+ 		propmarkp();
+		List<Move> legalMoves = new ArrayList<Move>();
+		Set<Proposition> legalProps = legalPropositions.get(role);
+		for(Proposition p : legalProps){
 			if(p.getValue()){
 				Move m = getMoveFromProposition(p);
-				ret.add(m);
+				legalMoves.add(m);
 			}
-
 		}
-
-		//System.out.println(ret);
-		return ret;
+		return legalMoves;
 	}
 
 	/**
@@ -219,11 +250,17 @@ public class MyPropNetStateMachine extends StateMachine {
 	@Override
 	public MachineState getNextState(MachineState state, List<Move> moves)
 	throws TransitionDefinitionException {
-		initializeBasePropositions(state);
-		initializeInputPropositions(moves);
-		propagatePropositionValues();
-		Set<GdlSentence> nextStepTrueBaseProps = getNextStepTrueBaseProps();
-		return  getMachineStateFromSentenceList(nextStepTrueBaseProps);
+		markBases(state);
+		markActions(moves);
+		propmarkp();
+		Set<GdlSentence> sentences = new HashSet<GdlSentence>();
+		for(GdlSentence s: basePropositions.keySet()){
+			Proposition p = basePropositions.get(s);
+			if(p.getSingleInput().getValue()){
+				sentences.add(p.getName());
+			}
+		}
+		return  getMachineStateFromSentenceList(sentences);
 	}
 
 	/**
@@ -240,7 +277,7 @@ public class MyPropNetStateMachine extends StateMachine {
 	 *
 	 * @return The order in which the truth values of propositions need to be set.
 	 */
-
+	//TODO: I haven't read this part yet, may need revising		--Ding
 	public List<Proposition> getOrdering()
 	{
 		//TODO compute the topological ordering
@@ -272,10 +309,15 @@ public class MyPropNetStateMachine extends StateMachine {
 		while(!propositions.isEmpty())
 		{
 			Proposition currProp = propositions.remove(0);
-
+			if(!components.contains(currProp))continue;
 			// TODO: Question - Are the input and base propositions in this list?
 			// Should we exempt them?  What about goal and terminal?
 			if(isBaseOrInputOrInitProposition(currProp)) continue;
+			if(currProp.getInputs().size() == 0){
+				System.out.println("spurious prop found! omgzz " + currProp);
+				continue;
+			}
+
 
 			Set<Component> inputs = currProp.getSingleInput().getInputs();
 
@@ -286,7 +328,7 @@ public class MyPropNetStateMachine extends StateMachine {
 			{
 				//Check to make sure that it is ordered already or is a base proposition or a intial proposition
 				// TODO That they are already accounted for?
-				if(!(order.contains(c) || isBaseOrInputOrInitProposition((Proposition) c)))
+				if( components.contains(c) && (!(order.contains(c) || isBaseOrInputOrInitProposition((Proposition) c))))
 				{
 					inputsAccounted = false;
 					break;
@@ -300,8 +342,6 @@ public class MyPropNetStateMachine extends StateMachine {
 				propositions.add(currProp);
 		}
 
-		//System.out.println("order");
-		System.out.println(order);
 		return order;
 
 	}
@@ -309,18 +349,23 @@ public class MyPropNetStateMachine extends StateMachine {
 	//Checks to see whether a proposition is a base or input
 	private boolean isBaseOrInputOrInitProposition(Proposition p)
 	{
+		if(p.getInputs().size()==0) return true;
 		//if(base or input (or init?) ) return true;
 		if(basePropositions.containsValue(p)) return true;
 		if(inputPropositions.containsValue(p)) return true;
-		if(init.equals(p)) return true;
+		if(pInit.equals(p)) return true;
 		return false;
 	}
 
-	/** Already implemented for you */
+
+
+	/* Already implemented for you */
 	@Override
 	public List<Role> getRoles() {
 		return roles;
 	}
+
+	/* Helper methods */
 
 	/**
 	 * The Input propositions are indexed by (does ?player ?action).
@@ -351,7 +396,6 @@ public class MyPropNetStateMachine extends StateMachine {
 	 * @param p
 	 * @return a PropNetMove
 	 */
-
 	public static Move getMoveFromProposition(Proposition p)
 	{
 		return new Move(p.getName().get(1));
@@ -388,6 +432,249 @@ public class MyPropNetStateMachine extends StateMachine {
 
 		}
 		return new MachineState(contents);
+	}
+
+/*--------------------below is code for factoring propnet, we should write our own!-----------------------------
+ *					  These are only for references...
+ *															--by Ding
+ */
+
+	private String getLabelFromComponent(Component c){
+		String label = c.toString().replaceAll(".*label=\"", "");
+		label = label.replaceAll("\"].*", "");
+		return label;
+	}
+
+	private Set<Component> getTransitiveClosure(Component c){
+		Queue<Component> q = new LinkedList<Component>();
+		q.add(c);
+		Set<Component> comps = new HashSet<Component>();
+		while(!q.isEmpty()){
+			Component curr = q.poll();
+			for(Component child : curr.getInputs()){
+					q.add(child);
+			}
+			comps.add(curr);
+		}
+		return comps;
+	}
+
+
+	private Set<Component> getValidLegals(Set<Component> validInputs,Set<Component> factor){
+		Set<Component> ret = new HashSet<Component>();
+		for(Component start : validInputs){
+			Queue<Component> q = new LinkedList<Component>();
+			q.add(start);
+			Set<Component> seen =new HashSet<Component>();
+			while(!q.isEmpty()){
+				Component curr = q.poll();
+				for(Component out : curr.getOutputs()){
+					if(legalPropositions.containsValue(out)){
+						ret.add(out);
+					}
+					if(out.getInputs().size()!=1){
+						if(getLabelFromComponent(out).equalsIgnoreCase("or")){
+							// its an or node just add it:
+							if(!seen.contains(out)){
+								q.add(out);
+								seen.add(out);
+							}
+						}else{
+							// and node : only add if all inputs contained in the factor
+							boolean allFound = true;
+							for(Component d : out.getInputs()){
+								if(!factor.contains(d)) {allFound=false; break;}
+							}
+							if(allFound) {
+								if(!seen.contains(out)){
+									q.add(out);
+									seen.add(out);
+								}
+							}
+						}
+					}else{
+						if(!seen.contains(out)){
+							q.add(out);
+							seen.add(out);
+						}
+					}
+				}
+			}
+		}
+		return  ret;
+	}
+
+
+
+	private Set<Component> makeDisjunctiveFactor(){
+
+		//put each goal/terminal state's child prop node with a single input of a disjunct (or) into its own seperate set
+		ArrayList<Set<Component>> goalProps = new ArrayList<Set<Component>>();
+		//System.out.println("terminals single child " + getLabelFromComponent(terminal.getSingleInput()));
+
+		//if(getLabelFromComponent(terminal.getSingleInput()).equalsIgnoreCase("or")){
+			for(Component c : pTerminal.getSingleInput().getInputs()){
+				HashSet<Component> toAdd = new HashSet<Component>();
+				toAdd.add(c);
+				goalProps.add(toAdd);
+			}
+		//}
+		for(Role r: goalPropositions.keySet()){ //get all goals with input from disjuncts, then add their prop children to the mix
+			for(Proposition prop : goalPropositions.get(r)){
+				//if(getLabelFromComponent(prop.getSingleInput()).equalsIgnoreCase("or")){
+
+					for(Component g : prop.getSingleInput().getInputs()){
+						HashSet<Component> toAdd = new HashSet<Component>();
+						toAdd.add(g);
+						goalProps.add(toAdd);
+					}
+				//}
+			}
+		}
+		// go through each set:
+
+		for(int i =0; i<goalProps.size(); i++){
+
+			Set<Component> propset = goalProps.get(i);
+			//Component p = propset.iterator().next();
+
+			Queue<Component> q = new LinkedList<Component>();
+			// enqueue props
+			//q.add(p);
+			for(Component c : propset)
+				q.add(c);
+
+
+			// compute transitive closure:
+			while(!q.isEmpty()){
+				Component curr = q.poll();
+				for(Component child : curr.getInputs()){
+					if(!inputPropositions.containsValue(child)){
+						q.add(child);
+
+					}
+				}
+				propset.add(curr);
+				// combine with any other components that contain
+				for(int j =0; j<goalProps.size(); j++){
+					if(i==j)continue;
+
+					if(goalProps.get(j).contains(curr)){
+
+						propset.addAll(goalProps.get(j));
+						goalProps.remove(j);
+						i--;
+						break;
+					}
+
+				}
+			}
+		}
+
+		System.out.println("Number of Factors " + goalProps.size());
+
+
+		// choose the smallest:
+		int smallestIndex = 0;
+		int smallestSize = goalProps.get(0).size();
+		for(int i =1; i<goalProps.size(); i++){
+			System.out.println("Size of factor " + i + " = " + goalProps.get(i).size());
+			if(goalProps.get(i).size()<smallestSize){
+				smallestIndex = i;
+				smallestSize = goalProps.get(i).size();
+			}
+		}
+
+		Set<Component> factor = goalProps.get(smallestIndex);
+
+
+		/*Input Props */
+		// add input props that link to this factor
+		int inputPropsAdded = 0;
+		Set<Proposition> validInputs = new HashSet<Proposition>();
+		for(GdlSentence key : inputPropositions.keySet()){
+			Proposition input = inputPropositions.get(key);
+			for(Component output : input.getOutputs()){
+				if(factor.contains(output)){
+					factor.add(input);
+					validInputs.add(input);
+					inputPropsAdded++;
+					break; // don't double add
+				}
+			}
+		}
+		System.out.println("Number of Input Props Added: " + inputPropsAdded);
+
+		/* Goal Propositions */
+		for(Role key : goalPropositions.keySet()){
+			Set<Proposition> g = goalPropositions.get(key);
+			for(Proposition p : g){
+				factor.add(p);
+				factor.add(p.getSingleInput());
+			}
+		}
+
+		/* Init Prop */
+		factor.add(pInit);
+
+		System.out.println("Size of factor before adding terminal and the conjunction" + factor.size());
+		/* Terminal Prop */
+		factor.add(pTerminal);
+		factor.add(pTerminal.getSingleInput());
+		System.out.println("Size of factor adding adding terminal and the conjunction" + factor.size());
+
+
+		/*Input Props*/
+		/*Getting the legal inputs to add */
+		//Algorithm
+		//Convert the input props to legal props
+		//Trace all the way back and add everything into the component set
+
+		//Get each inputProp
+		int legalAdded = 0;
+		for(Proposition p : validInputs)
+		{
+			//Add the proposition
+			Proposition legalProp = legalInputMap.get(p);
+			Queue<Component> q = new LinkedList<Component>();
+			q.add(legalProp);
+			while(!q.isEmpty())
+			{
+				Component curr = q.poll();
+				factor.add(curr);
+				legalAdded++;
+				q.addAll(curr.getInputs());
+			}
+		}
+		System.out.println("Number of legal props added " + legalAdded++);
+
+
+		/*
+		 * Remove Non-Connected
+		*/
+		for(Component c : factor){
+			Iterator i = c.getInputs().iterator();
+			while(i.hasNext()){
+				Component input = (Component) i.next();
+				if(!factor.contains(input)){
+					//System.out.println("Removed input");
+					i.remove();
+				}
+			}
+
+
+			Iterator i2 = c.getOutputs().iterator();
+			while(i2.hasNext()){
+				Component input = (Component) i2.next();
+				if(!factor.contains(input)){
+					//System.out.println("Removed output");
+					i2.remove();
+				}
+			}
+		}
+		System.out.println("Factor size : " + factor.size());
+		System.out.println("Components:" + propNet.getComponents().size());
+		return factor;
 	}
 
 }

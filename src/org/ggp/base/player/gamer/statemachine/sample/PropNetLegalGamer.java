@@ -20,7 +20,7 @@ import org.ggp.base.util.statemachine.implementation.propnet.MyPropNetStateMachi
  * public Move stateMachineSelectMove(long timeout)
  *
  */
-public final class testPropLegalGamer extends SampleGamer
+public final class PropNetLegalGamer extends SampleGamer
 {
 	/**
 	 * This function is called at the start of each round
