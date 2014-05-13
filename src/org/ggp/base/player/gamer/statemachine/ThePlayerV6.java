@@ -25,7 +25,7 @@ import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 public class ThePlayerV6 extends StateMachineGamer {
 
   // TODO: learn MC_NUM_ATTEMPTS during metagaming
-  static double MC_NUM_ATTEMPTS = 5;
+  static double MC_NUM_ATTEMPTS = 2;
 
   // TODO: better way to store this relation -- how?
   HashMap<MachineState, Node> stateToNode = new HashMap<MachineState, Node>();
@@ -143,7 +143,7 @@ public class ThePlayerV6 extends StateMachineGamer {
   public double monteCarlo(MachineState state)
       throws TransitionDefinitionException, MoveDefinitionException,
       GoalDefinitionException {
-    //TODO: prefer early win to late win
+    // TODO: prefer early win to late win
     StateMachine theMachine = getStateMachine();
 
     int numAttempts = 0;
@@ -178,8 +178,6 @@ public class ThePlayerV6 extends StateMachineGamer {
     Move selection = moves.get(random.nextInt(moves.size()));
     double curBest = -Double.MAX_VALUE;
     for (Move move : moves) {
-      // TODO: SAME AS ABOVE: getRandomNextState works only if we assume no
-      // simultaneous actions -- works for current games, fix in the future
       double minScore = 100;
       List<List<Move>> jointMoves = theMachine.getLegalJointMoves(currentState,
           getRole(), move);
@@ -267,6 +265,7 @@ public class ThePlayerV6 extends StateMachineGamer {
       GoalDefinitionException {
     // TODO: rather than choose between heuristics, maybe just try to set a good
     // C for MCTS
+    // TODO: maybe learn timeouts as well
     // TODO: play against searchlight gamer instead of random gamer
     long finishBy = timeout - 1000;
     StateMachine stateMachine = getStateMachine();
