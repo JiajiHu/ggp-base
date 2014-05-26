@@ -107,6 +107,16 @@ public class MyPropNetStateMachine extends StateMachine {
 		}
 	}
 
+	protected void propmarkp(Proposition target)
+  {
+    for(Proposition p : ordering){
+      boolean val = p.getSingleInput().getValue();
+      p.setValue(val);
+      if (p.equals(target))
+        break;
+    }
+  }
+
 	/*
 	protected void propmarkp()
 	{
@@ -176,7 +186,7 @@ public class MyPropNetStateMachine extends StateMachine {
 	@Override
 	public boolean isTerminal(MachineState state) {
 		markBases(state);
-		propmarkp();
+		propmarkp(pTerminal);
 		return pTerminal.getValue();
 	}
 
