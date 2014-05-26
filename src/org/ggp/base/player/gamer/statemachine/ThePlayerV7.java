@@ -17,12 +17,12 @@ import org.ggp.base.util.statemachine.cache.CachedStateMachine;
 import org.ggp.base.util.statemachine.exceptions.GoalDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
-import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
+import org.ggp.base.util.statemachine.implementation.propnet.MyPropNetStateMachine;
 
-// THE Player. version 6. May.11.2014.
-// MCTS multi player -- only keeps score for self -- use metagaming for MCTS
+// THE Player. version 7. May.26.2014.
+// MCTS multi player -- with propnets
 
-public class ThePlayerV6 extends StateMachineGamer {
+public class ThePlayerV7 extends StateMachineGamer {
 
   // TODO: learn MC_NUM_ATTEMPTS during metagaming
   static double MC_NUM_ATTEMPTS = 1;
@@ -309,7 +309,7 @@ public class ThePlayerV6 extends StateMachineGamer {
   // This is the default State Machine
   @Override
   public StateMachine getInitialStateMachine() {
-    return new CachedStateMachine(new ProverStateMachine());
+    return new CachedStateMachine(new MyPropNetStateMachine());
   }
 
   // This is the default Sample Panel
