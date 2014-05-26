@@ -273,6 +273,31 @@ public class MyPropNetStateMachine extends StateMachine {
 		return  getMachineStateFromSentenceList(sentences);
 	}
 
+	void reorder(List<Proposition> propositions)
+	{
+		HashSet<Proposition> legalProps = new HashSet<Proposition>();
+		for(Set<Proposition> ps: legalPropositions.values())
+			legalProps.addAll(ps);
+		int firstNonLegal = 0;
+		for(int i = 0; i < propositions.size(); i++){
+			if(pTerminal.equals(propositions.get(i))){
+//				System.out.println("reorder terminal");
+				Proposition temp = propositions.get(i);
+				propositions.set(i, propositions.get(firstNonLegal));
+				propositions.set(firstNonLegal, temp);
+				firstNonLegal++;
+			}
+		}
+		for(int i = 0; i < propositions.size(); i++){
+			if(legalProps.contains(propositions.get(i)) ){
+//				System.out.println("reorder legal");
+				Proposition temp = propositions.get(i);
+				propositions.set(i, propositions.get(firstNonLegal));
+				propositions.set(firstNonLegal, temp);
+				firstNonLegal++;
+			}
+		}
+	}
 	/**
 	 * This should compute the topological ordering of propositions.
 	 * Each component is either a proposition, logical gate, or transition.
@@ -290,6 +315,7 @@ public class MyPropNetStateMachine extends StateMachine {
 	//TODO: I haven't read this part yet, may need revising		--Ding
 	public List<Proposition> getOrdering()
 	{
+		System.out.println("getordering");
 		//TODO compute the topological ordering
 		List<Proposition> order = new LinkedList<Proposition>();
 		//All of the components in the PropNet
@@ -313,6 +339,7 @@ public class MyPropNetStateMachine extends StateMachine {
 		* 	Make sure that each of the propositions leading in to the connective before it are accounted for
 		*
 		*/
+		reorder(propositions);
 
 		//Loop through all propositions
 
@@ -347,11 +374,14 @@ public class MyPropNetStateMachine extends StateMachine {
 
 			//Either add to the ordered list or move to the end of the waiting proposition list
 			if(inputsAccounted)
+			{
 				order.add(currProp);
+				reorder(propositions);
+			}
 			else
 				propositions.add(currProp);
 		}
-
+		System.out.println("getordering finished");
 		return order;
 
 	}
