@@ -33,6 +33,7 @@ public class MyPropNetStateMachine extends StateMachine {
     private PropNet propNet;
     /** The topological ordering of the propositions */
     private List<Proposition> ordering;
+    private int lastLegal;
     /** The player roles */
     private List<Role> roles;
 
@@ -117,6 +118,17 @@ public class MyPropNetStateMachine extends StateMachine {
     }
   }
 
+	protected void propmarkp(int length)
+	{
+	  int i = 0;
+	  for (Proposition p : ordering) {
+	    boolean val = p.getSingleInput().getValue();
+	    p.setValue(val);
+	    if (i == length)
+	      break;
+	    i++;
+	  }
+	}
 	/*
 	protected void propmarkp()
 	{
@@ -382,6 +394,32 @@ public class MyPropNetStateMachine extends StateMachine {
 				propositions.add(currProp);
 		}
 		System.out.println("getordering finished");
+
+		HashSet<Proposition> legalProps = new HashSet<Proposition>();
+    for (Set<Proposition> ps : legalPropositions.values())
+      legalProps.addAll(ps);
+
+    int max = 0;
+    for (int i = 0; i < order.size(); i++) {
+      if (legalProps.contains(order.get(i))) {
+        max = i;
+      }
+    }
+    lastLegal = max;
+
+    int terminalPos = 0;
+    for (int i = 0; i < order.size(); i++) {
+      if (pTerminal.equals(order.get(i))) {
+        terminalPos = i;
+        break;
+      }
+    }
+
+    System.out.println("isTerminal position: " + terminalPos);
+    System.out.println("Total legal: " + legalProps.size());
+    System.out.println("Last legal: " + lastLegal);
+    System.out.println("Total props: " + order.size());
+
 		return order;
 
 	}
