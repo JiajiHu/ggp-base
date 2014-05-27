@@ -320,6 +320,8 @@ public class MyPropNetStateMachine extends StateMachine {
      * To check for a dependency - Make sure that each of the propositions
      * leading in to the connective before it are accounted for
      */
+
+    /*
     reorder(propositions);
 
     // Loop through all propositions
@@ -361,6 +363,117 @@ public class MyPropNetStateMachine extends StateMachine {
       } else
         propositions.add(currProp);
     }
+    */
+
+    System.out.println(propositions.size());
+
+
+    List<Proposition> termialTree = new ArrayList<Proposition>();
+    List<Proposition> termialTree1 = new ArrayList<Proposition>();
+
+    for (Proposition proposition : propositions)
+    	if (pTerminal.equals(proposition)) {
+    		termialTree.add(proposition);
+    		termialTree1.add(proposition);
+    		break;
+    	}
+    int idx = 0;
+    System.out.println(idx + "\t" + termialTree.size());
+    while (idx < termialTree.size()) {
+    	Proposition currProp = termialTree.get(idx);
+    	if (currProp.getInputs().size() == 0) {
+            System.out.println("spurious prop found! omgzz " + currProp);
+            idx++;
+            continue;
+        }
+    	Set<Component> inputs = currProp.getSingleInput().getInputs();
+    	for (Component c : inputs)
+    		if (components.contains(c)) {
+    			if (!termialTree.contains((Proposition) c)) {
+    				termialTree.add((Proposition) c);
+    				termialTree1.add((Proposition) c);
+    			}
+    		}
+    	idx++;
+    }
+    System.out.println(termialTree.size());
+
+    while (!termialTree.isEmpty()) {
+    	Proposition currProp = termialTree.remove(0);
+        if (!components.contains(currProp))
+          continue;
+        // TODO: Question - Are the input and base propositions in this list?
+        // Should we exempt them? What about goal and terminal?
+        if (isBaseOrInputOrInitProposition(currProp))
+          continue;
+        if (currProp.getInputs().size() == 0) {
+          System.out.println("spurious prop found! omgzz " + currProp);
+          continue;
+        }
+
+        Set<Component> inputs1 = currProp.getSingleInput().getInputs();
+
+        boolean inputsAccounted = true;
+
+        // check if all of the inputs are satisfied
+        for (Component c : inputs1) {
+          // Check to make sure that it is ordered already or is a base
+          // proposition or a intial proposition
+          // TODO That they are already accounted for?
+          if (components.contains(c)
+              && (!(order.contains(c) || isBaseOrInputOrInitProposition((Proposition) c)))) {
+            inputsAccounted = false;
+            break;
+          }
+        }
+
+        // Either add to the ordered list or move to the end of the waiting
+        // proposition list
+        if (inputsAccounted) {
+          order.add(currProp);
+        } else
+        	termialTree.add(currProp);
+    }
+
+    while (!propositions.isEmpty()) {
+    	Proposition currProp = propositions.remove(0);
+        if (termialTree1.contains(currProp))
+        	continue;
+        if (!components.contains(currProp))
+          continue;
+        // TODO: Question - Are the input and base propositions in this list?
+        // Should we exempt them? What about goal and terminal?
+        if (isBaseOrInputOrInitProposition(currProp))
+          continue;
+        if (currProp.getInputs().size() == 0) {
+          System.out.println("spurious prop found! omgzz " + currProp);
+          continue;
+        }
+
+        Set<Component> inputs1 = currProp.getSingleInput().getInputs();
+
+        boolean inputsAccounted = true;
+
+        // check if all of the inputs are satisfied
+        for (Component c : inputs1) {
+          // Check to make sure that it is ordered already or is a base
+          // proposition or a intial proposition
+          // TODO That they are already accounted for?
+          if (components.contains(c)
+              && (!(order.contains(c) || isBaseOrInputOrInitProposition((Proposition) c)))) {
+            inputsAccounted = false;
+            break;
+          }
+        }
+
+        // Either add to the ordered list or move to the end of the waiting
+        // proposition list
+        if (inputsAccounted) {
+          order.add(currProp);
+        } else
+          propositions.add(currProp);
+    }
+
     System.out.println("getordering finished");
 
     HashSet<Proposition> legalProps = new HashSet<Proposition>();
