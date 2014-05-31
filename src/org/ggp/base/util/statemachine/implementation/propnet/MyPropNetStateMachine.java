@@ -293,104 +293,6 @@ public class MyPropNetStateMachine extends StateMachine {
    * @return The order in which the truth values of propositions need to be set.
    */
   // TODO: I haven't read this part yet, may need revising --Ding
-//  public List<Proposition> getOrdering() {
-//    System.out.println("getordering");
-//    // TODO compute the topological ordering
-//    List<Proposition> order = new LinkedList<Proposition>();
-//    // All of the components in the PropNet
-//    List<Component> components = new ArrayList<Component>(
-//        propNet.getComponents());
-//    // All of the propositions in the prop net
-//    List<Proposition> propositions = new ArrayList<Proposition>(
-//        propNet.getPropositions());
-//
-//    /*
-//     * for(GdlTerm key : basePropositions.keySet())
-//     * basePropositions.get(key).isBaseProposition=true;
-//     *
-//     * for(Proposition p: propositions) visit(p,order);
-//     */
-//    /*
-//     * Ordering Algorithm
-//     *
-//     * Go through each of the unordered propositions if it has any dependencies
-//     * - put it back into the queue if it doesn't have any dependencies - append
-//     * it to the list of ordered propositions
-//     *
-//     * To check for a dependency - Make sure that each of the propositions
-//     * leading in to the connective before it are accounted for
-//     */
-//    reorder(propositions);
-//
-//    // Loop through all propositions
-//
-//    while (!propositions.isEmpty()) {
-//      Proposition currProp = propositions.remove(0);
-//      if (!components.contains(currProp))
-//        continue;
-//      // TODO: Question - Are the input and base propositions in this list?
-//      // Should we exempt them? What about goal and terminal?
-//      if (isBaseOrInputOrInitProposition(currProp))
-//        continue;
-//      if (currProp.getInputs().size() == 0) {
-//        System.out.println("spurious prop found! omgzz " + currProp);
-//        continue;
-//      }
-//
-//      Set<Component> inputs = currProp.getSingleInput().getInputs();
-//
-//      boolean inputsAccounted = true;
-//
-//      // check if all of the inputs are satisfied
-//      for (Component c : inputs) {
-//        // Check to make sure that it is ordered already or is a base
-//        // proposition or a intial proposition
-//        // TODO That they are already accounted for?
-//        if (components.contains(c)
-//            && (!(order.contains(c) || isBaseOrInputOrInitProposition((Proposition) c)))) {
-//          inputsAccounted = false;
-//          break;
-//        }
-//      }
-//
-//      // Either add to the ordered list or move to the end of the waiting
-//      // proposition list
-//      if (inputsAccounted) {
-//        order.add(currProp);
-////        reorder(propositions);
-//      } else
-//        propositions.add(currProp);
-//    }
-//    System.out.println("getordering finished");
-//
-//    HashSet<Proposition> legalProps = new HashSet<Proposition>();
-//    for (Set<Proposition> ps : legalPropositions.values())
-//      legalProps.addAll(ps);
-//
-//    int max = 0;
-//    for (int i = 0; i < order.size(); i++) {
-//      if (legalProps.contains(order.get(i))) {
-//        max = i;
-//      }
-//    }
-//    lastLegal = max;
-//
-//    int terminalPos = 0;
-//    for (int i = 0; i < order.size(); i++) {
-//      if (pTerminal.equals(order.get(i))) {
-//        terminalPos = i;
-//        break;
-//      }
-//    }
-//
-//    System.out.println("isTerminal position: " + terminalPos);
-//    System.out.println("Total legal: " + legalProps.size());
-//    System.out.println("Last legal: " + lastLegal);
-//    System.out.println("Total props: " + order.size());
-//
-//    return order;
-//
-//  }
 
   public List<Proposition> getOrdering() {
 	    System.out.println("getordering");
@@ -419,53 +321,6 @@ public class MyPropNetStateMachine extends StateMachine {
 	     * To check for a dependency - Make sure that each of the propositions
 	     * leading in to the connective before it are accounted for
 	     */
-
-	    /*
-	    reorder(propositions);
-
-	    // Loop through all propositions
-
-	    while (!propositions.isEmpty()) {
-	      Proposition currProp = propositions.remove(0);
-	      if (!components.contains(currProp))
-	        continue;
-	      // TODO: Question - Are the input and base propositions in this list?
-	      // Should we exempt them? What about goal and terminal?
-	      if (isBaseOrInputOrInitProposition(currProp))
-	        continue;
-	      if (currProp.getInputs().size() == 0) {
-	        System.out.println("spurious prop found! omgzz " + currProp);
-	        continue;
-	      }
-
-	      Set<Component> inputs = currProp.getSingleInput().getInputs();
-
-	      boolean inputsAccounted = true;
-
-	      // check if all of the inputs are satisfied
-	      for (Component c : inputs) {
-	        // Check to make sure that it is ordered already or is a base
-	        // proposition or a intial proposition
-	        // TODO That they are already accounted for?
-	        if (components.contains(c)
-	            && (!(order.contains(c) || isBaseOrInputOrInitProposition((Proposition) c)))) {
-	          inputsAccounted = false;
-	          break;
-	        }
-	      }
-
-	      // Either add to the ordered list or move to the end of the waiting
-	      // proposition list
-	      if (inputsAccounted) {
-	        order.add(currProp);
-//	        reorder(propositions);
-	      } else
-	        propositions.add(currProp);
-	    }
-	    */
-
-	    System.out.println(propositions.size());
-
 
 	    List<Proposition> termialTree = new ArrayList<Proposition>();
 	    List<Proposition> termialTree1 = new ArrayList<Proposition>();
@@ -692,8 +547,8 @@ public class MyPropNetStateMachine extends StateMachine {
   }
 
   /*--------------------below is code for factoring propnet, we should write our own!-----------------------------
-   *					  These are only for references...
-   *															--by Ding
+   *            These are only for references...
+   *                              --by Ding
    */
 
   private String getLabelFromComponent(Component c) {
@@ -793,6 +648,8 @@ public class MyPropNetStateMachine extends StateMachine {
         // }
       }
     }
+    
+    System.out.println("asdfiajdioawejfoijdfioawje");
     // go through each set:
 
     for (int i = 0; i < goalProps.size(); i++) {
