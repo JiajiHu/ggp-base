@@ -17,7 +17,7 @@ import org.ggp.base.util.statemachine.cache.CachedStateMachine;
 import org.ggp.base.util.statemachine.exceptions.GoalDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
-import org.ggp.base.util.statemachine.implementation.propnet.MyPropNetStateMachine;
+import org.ggp.base.util.statemachine.implementation.propnet.PropNetStateMachine;
 
 // THE Player. version 7. May.26.2014.
 // MCTS multi player -- with propnets
@@ -309,7 +309,7 @@ public class ThePlayerV7 extends StateMachineGamer {
   // This is the default State Machine
   @Override
   public StateMachine getInitialStateMachine() {
-    return new CachedStateMachine(new MyPropNetStateMachine());
+    return new CachedStateMachine(new PropNetStateMachine());
   }
 
   // This is the default Sample Panel

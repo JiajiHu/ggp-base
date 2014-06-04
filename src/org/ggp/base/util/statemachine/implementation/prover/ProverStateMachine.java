@@ -36,9 +36,11 @@ public class ProverStateMachine extends StateMachine
 
 	}
 
+	public List gdlDescription; // Add this line
 	@Override
 	public void initialize(List<Gdl> description)
 	{
+		gdlDescription = description; // And this line
 		prover = new AimaProver(description);
 		roles = Role.computeRoles(description);
 		initialState = computeInitialState();

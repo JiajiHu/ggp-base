@@ -1,0 +1,233 @@
+package org.ggp.base.player.gamer.statemachine.sample;
+
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.ggp.base.player.gamer.exception.GamePreviewException;
+import org.ggp.base.player.gamer.statemachine.StateMachineGamer;
+import org.ggp.base.util.game.Game;
+import org.ggp.base.util.statemachine.MachineState;
+import org.ggp.base.util.statemachine.Move;
+import org.ggp.base.util.statemachine.Role;
+import org.ggp.base.util.statemachine.StateMachine;
+import org.ggp.base.util.statemachine.exceptions.GoalDefinitionException;
+import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
+import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
+
+public class UCT extends StateMachineGamer {
+
+	public static final double C = 40.0;
+	public static final double GAMMA = 0.99;
+
+	private StateMachine machine;
+	private List<Role> roles;
+	private int myPlayerIdx;
+	private int numPlayers;
+
+	private long timeout;
+	private boolean timedOut;
+	private Move majorBranch;
+	private int simulationCount;
+
+	private Map<MachineState, UCTNode> nodes = new HashMap<MachineState, UCTNode>();
+	private Move lastAction = null;
+	private Map<Move, Set<MachineState>> branches = new HashMap<Move, Set<MachineState>>();
+
+	public UCT(StateMachine machine, Role myRole) {
+		this.machine = machine;
+		roles = machine.getRoles();
+		numPlayers = roles.size();
+		for (int i = 0; i < roles.size(); i++) {
+			Role role = roles.get(i);
+			if (role.equals(myRole)) {
+				myPlayerIdx = i;
+				break;
+			}
+		}
+	}
+
+	public Move selectBestMove(MachineState state, long timeout) throws Exception {
+		if (lastAction != null) {
+			// retain cache nodes along chosen branch
+			Set<MachineState> branchCache = branches.get(lastAction);
+			Map<MachineState, UCTNode> retainedNodes = new HashMap<MachineState, UCTNode>();
+			for (MachineState branchState: branchCache) {
+				if (nodes.containsKey(branchState)) {
+					retainedNodes.put(branchState, nodes.get(branchState));
+				}
+			}
+
+			System.out.println(">> retaining " + retainedNodes.size() + " of " + nodes.size() + " nodes for next move");
+
+			// update node cache
+			this.nodes = retainedNodes;
+			branches.clear();
+			lastAction = null;
+		}
+
+		UCTNode node = getOrCreateNode(state);
+		searchRepeatedly(state, timeout);
+		Move action = node.getOptimalAction(myPlayerIdx);
+
+
+		NumberFormat fmt = NumberFormat.getInstance();
+		fmt.setGroupingUsed(true);
+		node.printQValues(myPlayerIdx);
+		System.out.println(">> UCT simulations: " + fmt.format(simulationCount));
+		System.out.println(">> UCT cache size: " + nodes.size());
+		System.out.println(">> optimal action:");
+		System.out.println("        move: " + action);
+		System.out.println("      payoff: " + node.getPayoff(myPlayerIdx, action));
+
+		lastAction = action;
+
+		return action;
+	}
+
+	public void searchRepeatedly(MachineState state, long timeout) throws Exception {
+		timedOut = false;
+		this.timeout = timeout;
+		double[] qValues = new double[numPlayers];
+		Set<MachineState> path = new HashSet<MachineState>();
+
+		simulationCount = 0;
+
+		while (!timedOut) {
+			majorBranch = null;
+			path.clear();
+			search(state, qValues, path);
+			simulationCount++;
+		}
+	}
+
+	private void search(MachineState state, double[] qValues, Set<MachineState> path) throws Exception {
+		// check for timeouts
+		if (System.currentTimeMillis() >= timeout) {
+			timedOut = true;
+			return;
+		}
+
+		path.add(state);
+		UCTNode node = getOrCreateNode(state);
+
+		// terminal state
+		if (node.isTerminal()) {
+			for (int i = 0; i < numPlayers; i++) {
+				qValues[i] = node.getGoalValue(i);
+			}
+			return;
+		}
+
+		List<Move> sampledActions = new ArrayList<Move>();
+		for (int i = 0; i < numPlayers; i++) {
+			sampledActions.add(node.sampleAction(i));
+		}
+
+		MachineState nextState = machine.getNextState(state, sampledActions);
+		// cycle in the depth charge
+		if (path.contains(nextState)) {
+			Arrays.fill(qValues, 0);
+			return;
+		}
+		// do some branch caching to avoid running out of memory?
+		if (majorBranch == null) {
+			majorBranch = sampledActions.get(myPlayerIdx);
+			if (!branches.containsKey(majorBranch)) {
+				branches.put(majorBranch, new HashSet<MachineState>());
+			}
+		}
+		branches.get(majorBranch).add(nextState);
+
+		search(nextState, qValues, path);
+
+		if (!timedOut) {
+			for (int i = 0; i < numPlayers; i++) {
+				qValues[i] *= GAMMA;
+				node.update(i, sampledActions.get(i), qValues[i]);
+			}
+		}
+	}
+
+	private UCTNode getOrCreateNode(MachineState state) throws Exception {
+		// already have it
+		if (nodes.containsKey(state)) {
+			return nodes.get(state);
+		}
+
+		// create and add
+		UCTNode node = createNode(state);
+		nodes.put(state, node);
+		return node;
+	}
+
+	private UCTNode createNode(MachineState state) throws Exception {
+		UCTNode node = new UCTNode(numPlayers);
+
+		// set actions
+		for (int i = 0; i < numPlayers; i++) {
+			List<Move> legalMoves = machine.getLegalMoves(state, roles.get(i));
+			node.setActions(i, legalMoves);
+		}
+
+		// set goal values
+		if (machine.isTerminal(state)) {
+			for (int i = 0; i < numPlayers; i++) {
+				int goal = machine.getGoal(state, roles.get(i));
+				node.setGoalValue(i, goal);
+			}
+		}
+		return node;
+	}
+
+	@Override
+	public StateMachine getInitialStateMachine() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void stateMachineMetaGame(long timeout)
+			throws TransitionDefinitionException, MoveDefinitionException,
+			GoalDefinitionException {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public Move stateMachineSelectMove(long timeout)
+			throws TransitionDefinitionException, MoveDefinitionException,
+			GoalDefinitionException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void stateMachineStop() {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void stateMachineAbort() {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public void preview(Game g, long timeout) throws GamePreviewException {
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public String getName() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+}

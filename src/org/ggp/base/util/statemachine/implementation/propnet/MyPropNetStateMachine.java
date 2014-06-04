@@ -648,7 +648,7 @@ public class MyPropNetStateMachine extends StateMachine {
         // }
       }
     }
-    
+
     System.out.println("asdfiajdioawejfoijdfioawje");
     // go through each set:
 
