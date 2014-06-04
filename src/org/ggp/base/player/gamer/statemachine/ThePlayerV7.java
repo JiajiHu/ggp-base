@@ -18,14 +18,12 @@ import org.ggp.base.util.statemachine.exceptions.GoalDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 import org.ggp.base.util.statemachine.implementation.propnet.PropNetStateMachine;
+import org.ggp.base.util.statemachine.implementation.prover.ProverStateMachine;
 
 // THE Player. version 7. May.26.2014.
 // MCTS multi player -- with propnets
 
 public class ThePlayerV7 extends StateMachineGamer {
-
-  // TODO: learn MC_NUM_ATTEMPTS during metagaming
-  static double MC_NUM_ATTEMPTS = 1;
 
   // TODO: better way to store this relation -- how?
   HashMap<MachineState, Node> stateToNode = new HashMap<MachineState, Node>();
@@ -143,18 +141,12 @@ public class ThePlayerV7 extends StateMachineGamer {
   public double monteCarlo(MachineState state)
       throws TransitionDefinitionException, MoveDefinitionException,
       GoalDefinitionException {
-    // TODO: prefer early win to late win
     StateMachine theMachine = getStateMachine();
 
-    int numAttempts = 0;
+    MachineState finalState = theMachine.performDepthCharge(state, depth);
+    double score = theMachine.getGoal(finalState, getRole());
 
-    double score = 0;
-    for (; numAttempts < MC_NUM_ATTEMPTS; numAttempts++) {
-      MachineState finalState = theMachine.performDepthCharge(state, depth);
-      score += theMachine.getGoal(finalState, getRole());
-    }
-
-    return score / numAttempts;
+    return score;
   }
 
   public void performMCTSCycle(Node node) throws MoveDefinitionException,
@@ -163,8 +155,6 @@ public class ThePlayerV7 extends StateMachineGamer {
     MachineState selected_state = nodeToState.get(selected_node);
     if (!getStateMachine().isTerminal(selected_state))
       expand(selected_node);
-    // NOTE: monteCarlo performs MC_NUM_ATTEMPTS depth-charges, so all visit
-    // counts should in fact all be multiplied by that number.
     double score = monteCarlo(selected_state);
     backPropogate(selected_node, score);
   }
@@ -267,38 +257,26 @@ public class ThePlayerV7 extends StateMachineGamer {
     // C for MCTS
     // TODO: maybe learn timeouts as well
     // TODO: play against searchlight gamer instead of random gamer
+    MachineState currentState = getCurrentState();
     long finishBy = timeout - 1000;
-    StateMachine stateMachine = getStateMachine();
-    MachineState rootState = getCurrentState();
+    int numCycles = 0;
 
-    stateMachine.getInitialState();
-    MachineState currentState;
-    int numStatesExplored = 0;
-    int numRuns = 0;
-    int validMoves = 0;
+    Node rootNode;
+    if (stateToNode.containsKey(currentState))
+      rootNode = stateToNode.get(currentState);
+    else
+      rootNode = new Node(currentState);
+
     while (true) {
-      currentState = rootState;
-      numRuns++;
-      boolean isTerminal = stateMachine.isTerminal(currentState);
-      while (!isTerminal) {
-        validMoves = validMoves
-            + stateMachine.getLegalJointMoves(currentState).size();
-        currentState = stateMachine.getRandomNextState(currentState);
-        isTerminal = stateMachine.isTerminal(currentState);
-        numStatesExplored++;
-      }
       if (System.currentTimeMillis() > finishBy) {
         break;
       }
+      performMCTSCycle(rootNode);
+      numCycles++;
     }
 
     System.out.println("MetaGaming done");
-    System.out.println("Number of runs made: " + numRuns);
-    System.out.println("Number of states explored: " + numStatesExplored);
-    System.out.println("Estimated depth: " + (numStatesExplored + 0.0)
-        / numRuns);
-    System.out.println("Estimated branching factor: " + (validMoves + 0.0)
-        / numStatesExplored);
+    System.out.println("Number of runs made: " + numCycles);
   }
 
   @Override
@@ -309,7 +287,13 @@ public class ThePlayerV7 extends StateMachineGamer {
   // This is the default State Machine
   @Override
   public StateMachine getInitialStateMachine() {
-    return new CachedStateMachine(new PropNetStateMachine());
+    try{
+      return new CachedStateMachine(new PropNetStateMachine());
+    } catch (Exception e){
+      e.printStackTrace();
+      System.out.println("error generating propnet!");
+      return new CachedStateMachine(new ProverStateMachine());
+    }
   }
 
   // This is the default Sample Panel
