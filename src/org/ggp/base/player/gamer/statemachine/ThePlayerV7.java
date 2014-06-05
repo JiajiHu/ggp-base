@@ -30,7 +30,8 @@ public class ThePlayerV7 extends StateMachineGamer {
   HashMap<Node, MachineState> nodeToState = new HashMap<Node, MachineState>();
 
   // TODO: learn C during metagaming
-  int C = 40;
+  int C = 100;
+  long timeout_save = 1000;
 
   public class Node {
     int visits = 0;
@@ -198,7 +199,7 @@ public class ThePlayerV7 extends StateMachineGamer {
     StateMachine theMachine = getStateMachine();
     MachineState currentState = getCurrentState();
     long start = System.currentTimeMillis();
-    long finishBy = timeout - 1000;
+    long finishBy = timeout - timeout_save;
     List<Move> moves = theMachine.getLegalMoves(currentState, getRole());
     if (moves.size() == 1)
       return exitSequence(moves, moves.get(0), start, timeout);
@@ -227,13 +228,17 @@ public class ThePlayerV7 extends StateMachineGamer {
     stateMachineExplore(timeout);
     long stop = System.currentTimeMillis();
     System.out.println("time left: " + (timeout - stop));
+    if (timeout - stop < 0)
+      timeout_save += 500;
+    if (timeout - stop > 1000)
+      timeout_save -= 250;
     notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
     return selection;
   }
 
   public void stateMachineExplore(long timeout) throws MoveDefinitionException,
       TransitionDefinitionException, GoalDefinitionException {
-    long finishBy = timeout - 1000;
+    long finishBy = timeout - timeout_save;
     if (System.currentTimeMillis() > finishBy)
       return;
     MachineState currentState = getCurrentState();
@@ -258,7 +263,8 @@ public class ThePlayerV7 extends StateMachineGamer {
     // TODO: maybe learn timeouts as well
     // TODO: play against searchlight gamer instead of random gamer
     MachineState currentState = getCurrentState();
-    long finishBy = timeout - 1000;
+    timeout_save = 1000;
+    long finishBy = timeout - timeout_save;
     int numCycles = 0;
 
     Node rootNode;
@@ -287,13 +293,16 @@ public class ThePlayerV7 extends StateMachineGamer {
   // This is the default State Machine
   @Override
   public StateMachine getInitialStateMachine() {
+    StateMachine machine;
     try{
-      return new CachedStateMachine(new PropNetStateMachine());
+      machine = new CachedStateMachine(new PropNetStateMachine());
+//      System.out.println("Propnet generation done!");
     } catch (Exception e){
       e.printStackTrace();
       System.out.println("error generating propnet!");
-      return new CachedStateMachine(new ProverStateMachine());
+      machine = new CachedStateMachine(new ProverStateMachine());
     }
+    return machine;
   }
 
   // This is the default Sample Panel

@@ -267,38 +267,26 @@ public class ThePlayerV6 extends StateMachineGamer {
     // C for MCTS
     // TODO: maybe learn timeouts as well
     // TODO: play against searchlight gamer instead of random gamer
+    MachineState currentState = getCurrentState();
     long finishBy = timeout - 1000;
-    StateMachine stateMachine = getStateMachine();
-    MachineState rootState = getCurrentState();
+    int numCycles = 0;
 
-    stateMachine.getInitialState();
-    MachineState currentState;
-    int numStatesExplored = 0;
-    int numRuns = 0;
-    int validMoves = 0;
+    Node rootNode;
+    if (stateToNode.containsKey(currentState))
+      rootNode = stateToNode.get(currentState);
+    else
+      rootNode = new Node(currentState);
+
     while (true) {
-      currentState = rootState;
-      numRuns++;
-      boolean isTerminal = stateMachine.isTerminal(currentState);
-      while (!isTerminal) {
-        validMoves = validMoves
-            + stateMachine.getLegalJointMoves(currentState).size();
-        currentState = stateMachine.getRandomNextState(currentState);
-        isTerminal = stateMachine.isTerminal(currentState);
-        numStatesExplored++;
-      }
       if (System.currentTimeMillis() > finishBy) {
         break;
       }
+      performMCTSCycle(rootNode);
+      numCycles++;
     }
 
     System.out.println("MetaGaming done");
-    System.out.println("Number of runs made: " + numRuns);
-    System.out.println("Number of states explored: " + numStatesExplored);
-    System.out.println("Estimated depth: " + (numStatesExplored + 0.0)
-        / numRuns);
-    System.out.println("Estimated branching factor: " + (validMoves + 0.0)
-        / numStatesExplored);
+    System.out.println("Number of runs made: " + numCycles);
   }
 
   @Override
